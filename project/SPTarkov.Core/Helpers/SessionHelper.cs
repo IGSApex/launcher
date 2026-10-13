@@ -10,6 +10,7 @@ public enum ConnectStep
 {
     None,
     Ping,
+    Authentication,
     Profiles,
     Types,
     ModPages,
@@ -71,18 +72,19 @@ public class SessionHelper(ILogger<SessionHelper> logger, HttpHelper httpHelper,
                 }
             }
 
-            // Older servers may not expose this endpoint; default to no password prompt.
-            try
+            step = ConnectStep.Authentication;
+            using (var authCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken))
             {
-                using var authCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
                 authCts.CancelAfter(_requestTimeout);
                 var auth = await httpHelper.GameServerGet<SPTPasswordRequiredResponse>(
                     Urls.PasswordRequired, authCts.Token);
-                stateHelper.ServerRequiresPassword = auth?.Response == true;
-            }
-            catch (Exception ex) when (!cancellationToken.IsCancellationRequested)
-            {
-                logger.LogDebug(ex, "Server does not expose password requirement settings");
+                if (auth is null)
+                {
+                    logger.LogWarning("Server did not return password authentication settings");
+                    return ConnectResult.Fail(ConnectStep.Authentication);
+                }
+
+                stateHelper.ServerRequiresPassword = auth.Response;
             }
 
             step = ConnectStep.Profiles;
