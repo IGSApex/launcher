@@ -22,6 +22,10 @@ public class GameHelper
 
     public string? ErrorMessage;
 
+    /// <summary>Detect Fika in the configured SPT game installation, not the launcher runtime folder.</summary>
+    public bool IsFikaInstalled() => File.Exists(Path.Combine(_configHelper.GetGamePath(), "BepInEx", "plugins", "Fika.Core.dll")) ||
+        File.Exists(Path.Combine(_configHelper.GetGamePath(), "BepInEx", "plugins", "Fika", "Fika.Core.dll"));
+
     private List<string> Patches
     {
         get { return Directory.GetDirectories(Paths.PatchPath).ToList(); }
