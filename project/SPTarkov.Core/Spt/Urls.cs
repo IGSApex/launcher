@@ -3,6 +3,7 @@
 public class Urls
 {
     public const string Ping = "/launcher/v2/ping";
+    public const string PasswordRequired = "/launcher/v2/password-required";
     public const string Types = "/launcher/v2/types";
     public const string Login = "/launcher/v2/login";
     public const string Register = "/launcher/v2/register";
