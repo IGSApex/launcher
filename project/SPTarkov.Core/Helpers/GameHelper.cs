@@ -23,6 +23,16 @@ public class GameHelper
     public string? ErrorMessage;
 
     /// <summary>Detect Fika in the configured SPT game installation, not the launcher runtime folder.</summary>
+    public bool RequiresPasswordAuthentication()
+    {
+        if (!IsFikaInstalled()) return false;
+        var endpoint = _stateHelper.SelectedServer?.IpAddress?.Trim();
+        if (string.IsNullOrWhiteSpace(endpoint)) return false;
+        if (!endpoint.Contains("://", StringComparison.Ordinal)) endpoint = "https://" + endpoint;
+        return !Uri.TryCreate(endpoint, UriKind.Absolute, out var uri) ||
+            !(uri.Host == "127.0.0.1" && uri.Port == 6969);
+    }
+
     public bool IsFikaInstalled() => File.Exists(Path.Combine(_configHelper.GetGamePath(), "BepInEx", "plugins", "Fika.Core.dll")) ||
         File.Exists(Path.Combine(_configHelper.GetGamePath(), "BepInEx", "plugins", "Fika", "Fika.Core.dll"));
 
