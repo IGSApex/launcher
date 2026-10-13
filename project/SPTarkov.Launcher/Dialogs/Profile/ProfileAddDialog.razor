@@ -86,7 +86,7 @@
 
     protected override void OnInitialized()
     {
-        FikaInstalled = GameHelper.IsFikaInstalled();
+        FikaInstalled = GameHelper.RequiresPasswordAuthentication();
         ServerEditions = StateHelper.ProfileTypes.Keys.ToList();
         base.OnInitialized();
     }
