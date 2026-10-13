@@ -142,8 +142,20 @@
                 return false;
             }
 
-            if (returnResult.Response) await Accounts.RefreshProfilesAsync(Token.Token);
             var result = returnResult.Response;
+            if (result)
+            {
+                // Registration succeeded; a follow-up refresh must not report creation failure.
+                try
+                {
+                    if (!await Accounts.RefreshProfilesAsync(Token.Token))
+                        Snackbar.Add("Profile created, but the list could not be refreshed. Reconnect to reload it.", Severity.Warning);
+                }
+                catch (Exception)
+                {
+                    Snackbar.Add("Profile created, but the list could not be refreshed. Reconnect to reload it.", Severity.Warning);
+                }
+            }
 
             if (!result)
             {
