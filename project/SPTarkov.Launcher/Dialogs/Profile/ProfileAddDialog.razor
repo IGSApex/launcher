@@ -70,7 +70,7 @@
     private List<string> ServerEditions { get; set; } = [];
     private CancellationTokenSource Token { get; set; } = new();
     private bool UserCancel { get; set; }
-    private bool CanSubmit => !string.IsNullOrWhiteSpace(Request.Edition) && !string.IsNullOrWhiteSpace(Request.Username) && !string.IsNullOrWhiteSpace(StateHelper.LauncherToken);
+    private bool CanSubmit => !string.IsNullOrWhiteSpace(Request.Edition) && !string.IsNullOrWhiteSpace(Request.Username) && (!StateHelper.ServerRequiresPassword || !string.IsNullOrWhiteSpace(StateHelper.LauncherToken));
 
     private string EditionDescription(string edition) => StateHelper.ProfileTypes.GetValueOrDefault(edition, "");
 
@@ -88,7 +88,9 @@
     protected override void OnInitialized()
     {
         FikaInstalled = GameHelper.RequiresPasswordAuthentication();
-        ServerEditions = StateHelper.ProfileTypes.Keys.Where(e => string.Equals(e, StateHelper.LauncherEditionAllowed, StringComparison.OrdinalIgnoreCase)).ToList();
+        ServerEditions = StateHelper.ServerRequiresPassword
+            ? StateHelper.ProfileTypes.Keys.Where(e => string.Equals(e, StateHelper.LauncherEditionAllowed, StringComparison.OrdinalIgnoreCase)).ToList()
+            : StateHelper.ProfileTypes.Keys.ToList();
         Request.Edition = ServerEditions.FirstOrDefault() ?? "";
         base.OnInitialized();
     }
