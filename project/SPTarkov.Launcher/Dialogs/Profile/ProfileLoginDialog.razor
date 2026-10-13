@@ -19,7 +19,7 @@
                     <MudTextField Immediate="true" @bind-Value="Request.Username" Label="@(LocaleHelper.Get("profile_login_username"))" Variant="Variant.Outlined" Margin="Margin.Dense" Disabled="@(MiniProfile is not null)" Required="true"/>
                     @if (FikaInstalled)
                     {
-                        <MudTextField @bind-Value="Request.Password" InputType="InputType.Password" Label="Password" Variant="Variant.Outlined" Margin="Margin.Dense" Required="true"/>
+                        <MudTextField @bind-Value="Request.Password" InputType="InputType.Password" Label="Password" ShrinkLabel="true" Variant="Variant.Outlined" Margin="Margin.Dense" Required="true"/>
                     }
                 </MudForm>
             }
