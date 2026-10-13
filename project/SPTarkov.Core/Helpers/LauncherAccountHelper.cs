@@ -24,7 +24,12 @@ public sealed class LauncherAccountResponse
 /// <summary>Launcher-lifetime session; local file is a convenience marker, never authentication authority.</summary>
 public sealed class LauncherAccountHelper(HttpHelper http, StateHelper state)
 {
-    private static readonly string TempPath = Path.Combine(Path.GetTempPath(), "SPTarkov", "launcherTemp.json");
+    private static readonly string TempPath = Path.Combine(Path.GetTempPath(), "SPTarkov", $"launcherTemp-{Environment.ProcessId}.json");
+
+    public static void DeleteTemporarySessionMarker()
+    {
+        if (File.Exists(TempPath)) File.Delete(TempPath);
+    }
     private static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = true };
 
     public async Task<bool> RegisterAsync(string username, string password, CancellationToken ct = default)
