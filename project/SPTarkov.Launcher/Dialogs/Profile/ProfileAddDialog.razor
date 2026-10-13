@@ -3,6 +3,7 @@
 @inject HttpHelper HttpHelper
 @inject LocaleHelper LocaleHelper
 @inject GameHelper GameHelper
+@inject LauncherAccountHelper Accounts
 
 <MudDialog Class="form-dialog mud-background-gray border-2 border-solid mud-border-lines-default">
     <DialogContent>
@@ -41,7 +42,7 @@
                     }
 
                     <MudTextField Immediate="true" @bind-Value="Request.Username" Label="@(FikaInstalled ? "Username" : LocaleHelper.Get("profile_add_name"))" HelperText="@(LocaleHelper.Get("profile_add_name_help"))" ShrinkLabel="true" Variant="Variant.Outlined" Margin="Margin.Dense" Required="true" OnKeyDown="SubmitOnEnter"/>
-                    @if (FikaInstalled)
+                    @if (false)
                     {
                         <MudTextField Immediate="true" @bind-Value="Request.Password" InputType="InputType.Password" Label="Password" HelperText="Minimum 8 characters" ShrinkLabel="true" Variant="Variant.Outlined" Margin="Margin.Dense" Required="true"/>
                         <MudTextField Immediate="true" @bind-Value="_confirmPassword" InputType="InputType.Password" Label="Confirm Password" ShrinkLabel="true" Variant="Variant.Outlined" Margin="Margin.Dense" Required="true" Error="@(!string.IsNullOrEmpty(_confirmPassword) && _confirmPassword != Request.Password)" ErrorText="Passwords do not match"/>
@@ -69,7 +70,7 @@
     private List<string> ServerEditions { get; set; } = [];
     private CancellationTokenSource Token { get; set; } = new();
     private bool UserCancel { get; set; }
-    private bool CanSubmit => !string.IsNullOrWhiteSpace(Request.Edition) && !string.IsNullOrWhiteSpace(Request.Username) && (!FikaInstalled || (Request.Password?.Length >= 8 && Request.Password == _confirmPassword));
+    private bool CanSubmit => !string.IsNullOrWhiteSpace(Request.Edition) && !string.IsNullOrWhiteSpace(Request.Username) && !string.IsNullOrWhiteSpace(StateHelper.LauncherToken);
 
     private string EditionDescription(string edition) => StateHelper.ProfileTypes.GetValueOrDefault(edition, "");
 
@@ -87,7 +88,8 @@
     protected override void OnInitialized()
     {
         FikaInstalled = GameHelper.RequiresPasswordAuthentication();
-        ServerEditions = StateHelper.ProfileTypes.Keys.ToList();
+        ServerEditions = StateHelper.ProfileTypes.Keys.Where(e => string.Equals(e, StateHelper.LauncherEditionAllowed, StringComparison.OrdinalIgnoreCase)).ToList();
+        Request.Edition = ServerEditions.FirstOrDefault() ?? "";
         base.OnInitialized();
     }
 
@@ -131,6 +133,7 @@
             StateHasChanged();
             await Task.Delay(20);
 
+            Request.LauncherToken = StateHelper.LauncherToken;
             var returnResult = await HttpHelper.GameServerPut<SPTRegisterResponse>(Urls.Register, Request, Token.Token);
 
             if (returnResult is null)
@@ -139,7 +142,7 @@
                 return false;
             }
 
-            StateHelper.ProfileList = returnResult.Profiles;
+            if (returnResult.Response) await Accounts.RefreshProfilesAsync(Token.Token);
             var result = returnResult.Response;
 
             if (!result)
