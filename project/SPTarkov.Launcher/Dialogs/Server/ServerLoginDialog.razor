@@ -13,7 +13,12 @@
                 <MudProgressCircular Indeterminate="true" Color="Color.Primary"/>
                 <MudText>@_status</MudText>
             }
-            else if (!_connected || StateHelper.ServerRequiresPassword)
+            else if (!_connected)
+            {
+                <MudText Color="Color.Error">Unable to connect to this server. Please check the server and try again.</MudText>
+                <MudButton OnClick="Cancel">Close</MudButton>
+            }
+            else if (StateHelper.ServerRequiresPassword)
             {
                 <MudTextField @bind-Value="_username" Label="Username" Variant="Variant.Outlined" Required="true"/>
                 <MudTextField @bind-Value="_password" Label="Password" InputType="InputType.Password" Variant="Variant.Outlined" Required="true"/>
