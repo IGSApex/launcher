@@ -114,6 +114,7 @@ public class Launcher
             _trayHelper.Dispose();
             _singleInstanceGuard.Dispose();
             DeleteTrayIcon();
+            LauncherAccountHelper.DeleteTemporarySessionMarker();
         }
     }
 
