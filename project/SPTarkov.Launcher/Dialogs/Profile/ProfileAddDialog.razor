@@ -40,6 +40,7 @@
                     }
 
                     <MudTextField Immediate="true" @bind-Value="Request.Username" Label="@(LocaleHelper.Get("profile_add_name"))" HelperText="@(LocaleHelper.Get("profile_add_name_help"))" ShrinkLabel="true" Variant="Variant.Outlined" Margin="Margin.Dense" Required="true" OnKeyDown="SubmitOnEnter"/>
+                    <MudTextField @bind-Value="Request.Password" InputType="InputType.Password" Label="Password (minimum 8 characters)" Variant="Variant.Outlined" Margin="Margin.Dense" Required="true"/>
                 </MudForm>
 
                 <div class="mt-2 d-flex justify-end gap-2">
@@ -61,7 +62,7 @@
     private List<string> ServerEditions { get; set; } = [];
     private CancellationTokenSource Token { get; set; } = new();
     private bool UserCancel { get; set; }
-    private bool CanSubmit => !string.IsNullOrWhiteSpace(Request.Edition) && !string.IsNullOrWhiteSpace(Request.Username);
+    private bool CanSubmit => !string.IsNullOrWhiteSpace(Request.Edition) && !string.IsNullOrWhiteSpace(Request.Username) && Request.Password?.Length >= 8;
 
     private string EditionDescription(string edition) => StateHelper.ProfileTypes.GetValueOrDefault(edition, "");
 
