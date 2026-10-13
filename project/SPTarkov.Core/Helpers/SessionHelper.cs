@@ -117,14 +117,14 @@ public class SessionHelper(ILogger<SessionHelper> logger, HttpHelper httpHelper,
     }
 
     /// <summary>Logs into an existing profile by username and, on success, sets it as the selected profile.</summary>
-    public async Task<bool> LoginToProfileAsync(MiniProfile profile, CancellationToken cancellationToken = default)
+    public async Task<bool> LoginToProfileAsync(MiniProfile profile, string password, CancellationToken cancellationToken = default)
     {
         try
         {
             using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             cts.CancelAfter(_requestTimeout);
 
-            var request = new SPTLoginRequest { Username = profile.Username };
+            var request = new SPTLoginRequest { Username = profile.Username, Password = password };
             var response = await httpHelper.GameServerPut<SPTLoginResponse>(Urls.Login, request, cts.Token);
             if (response?.Response != true)
             {
@@ -142,14 +142,14 @@ public class SessionHelper(ILogger<SessionHelper> logger, HttpHelper httpHelper,
     }
 
     /// <summary>Authenticates by username, fetches the resulting profile, and sets it as the selected profile.</summary>
-    public async Task<MiniProfile?> LoginWithDetailsAsync(string username, CancellationToken cancellationToken = default)
+    public async Task<MiniProfile?> LoginWithDetailsAsync(string username, string password, CancellationToken cancellationToken = default)
     {
         try
         {
             using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             cts.CancelAfter(_requestTimeout);
 
-            var request = new SPTLoginRequest { Username = username };
+            var request = new SPTLoginRequest { Username = username, Password = password };
             var login = await httpHelper.GameServerPut<SPTLoginResponse>(Urls.Login, request, cts.Token);
             if (login?.Response != true)
             {
