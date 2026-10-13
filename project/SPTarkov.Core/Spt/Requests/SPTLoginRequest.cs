@@ -9,6 +9,9 @@ public record SPTLoginRequest
     [JsonPropertyName("username")]
     public string Username { get; set; } = "";
 
+    [JsonPropertyName("launcherToken")]
+    public string? LauncherToken { get; set; }
+
     [Required]
     [JsonPropertyName("password")]
     public string Password { get; set; } = "";
