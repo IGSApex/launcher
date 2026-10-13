@@ -13,7 +13,7 @@
                 <MudProgressCircular Indeterminate="true" Color="Color.Primary"/>
                 <MudText>@_status</MudText>
             }
-            else
+            else if (!_connected || StateHelper.ServerRequiresPassword)
             {
                 <MudTextField @bind-Value="_username" Label="Username" Variant="Variant.Outlined" Required="true"/>
                 <MudTextField @bind-Value="_password" Label="Password" InputType="InputType.Password" Variant="Variant.Outlined" Required="true"/>
@@ -40,6 +40,21 @@
     private string _confirm = "";
     private string _status = "";
     private bool _busy;
+    private bool _connected;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _busy = true;
+        _status = "Checking server settings...";
+        try
+        {
+            var result = await SessionHelper.ConnectToServerAsync(Server);
+            _connected = result.Success;
+            if (!_connected) Snackbar.Add("Server connection failed: " + result.FailedStep, Severity.Error);
+            else if (!StateHelper.ServerRequiresPassword) MudDialog.Close(DialogResult.Ok(Server));
+        }
+        finally { _busy = false; }
+    }
     private bool _register;
     private bool CanSubmit => !string.IsNullOrWhiteSpace(_username) && _password.Length >= 8 && (!_register || _confirm == _password);
 
@@ -53,12 +68,7 @@
         try
         {
             _status = "Connecting to server...";
-            var result = await SessionHelper.ConnectToServerAsync(Server);
-            if (!result.Success)
-            {
-                Snackbar.Add("Server connection failed: " + result.FailedStep, Severity.Error);
-                return;
-            }
+            if (!_connected) return;
             if (!StateHelper.ServerRequiresPassword)
             {
                 MudDialog.Close(DialogResult.Ok(Server));
