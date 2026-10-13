@@ -83,7 +83,7 @@
         }
         else
         {
-            AbortOrFail(LocaleHelper.Get("profile_login_task_fail"));
+            AbortOrFail(FikaInstalled ? "Wrong password!" : LocaleHelper.Get("profile_login_task_fail"));
         }
     }
 
