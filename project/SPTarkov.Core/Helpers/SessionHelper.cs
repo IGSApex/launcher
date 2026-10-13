@@ -117,7 +117,7 @@ public class SessionHelper(ILogger<SessionHelper> logger, HttpHelper httpHelper,
     }
 
     /// <summary>Logs into an existing profile by username and, on success, sets it as the selected profile.</summary>
-    public async Task<bool> LoginToProfileAsync(MiniProfile profile, string password, CancellationToken cancellationToken = default)
+    public async Task<bool> LoginToProfileAsync(MiniProfile profile, string password = "", CancellationToken cancellationToken = default)
     {
         try
         {
