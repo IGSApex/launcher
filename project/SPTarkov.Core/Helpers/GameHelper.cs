@@ -33,8 +33,40 @@ public class GameHelper
             !(uri.Host == "127.0.0.1" && uri.Port == 6969);
     }
 
-    public bool IsFikaInstalled() => File.Exists(Path.Combine(_configHelper.GetGamePath(), "BepInEx", "plugins", "Fika.Core.dll")) ||
-        File.Exists(Path.Combine(_configHelper.GetGamePath(), "BepInEx", "plugins", "Fika", "Fika.Core.dll"));
+    public bool IsFikaInstalled()
+    {
+        // BepInEx permits plugins in nested directories (for example plugins/Fika.Core/).
+        // Only inspect the configured game installation, never the server installation.
+        var pluginDirectory = Path.Combine(_configHelper.GetGamePath(), "BepInEx", "plugins");
+        if (!Directory.Exists(pluginDirectory))
+        {
+            _logger.LogInformation("Fika detection: plugin directory missing at {PluginDirectory}", pluginDirectory);
+            return false;
+        }
+
+        try
+        {
+            var installed = Directory.EnumerateFiles(
+                pluginDirectory, "Fika.Core.dll", SearchOption.AllDirectories
+            ).Any();
+
+            _logger.LogInformation(
+                "Fika detection: installed={FikaInstalled}, gamePath={GamePath}, server={Server}",
+                installed, _configHelper.GetGamePath(), _stateHelper.SelectedServer?.IpAddress
+            );
+            return installed;
+        }
+        catch (IOException ex)
+        {
+            _logger.LogWarning(ex, "Unable to inspect BepInEx plugins for Fika.Core.dll");
+            return false;
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            _logger.LogWarning(ex, "Access denied inspecting BepInEx plugins for Fika.Core.dll");
+            return false;
+        }
+    }
 
     private List<string> Patches
     {
