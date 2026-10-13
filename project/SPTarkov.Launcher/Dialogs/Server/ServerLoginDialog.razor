@@ -101,6 +101,11 @@
                 await Accounts.LogoutAsync();
                 return;
             }
+            if (!await Accounts.RefreshEditionsAsync())
+            {
+                Snackbar.Add("Unable to load permitted profile editions.", Severity.Error);
+                return;
+            }
             MudDialog.Close(DialogResult.Ok(Server));
         }
         catch (Exception ex)
