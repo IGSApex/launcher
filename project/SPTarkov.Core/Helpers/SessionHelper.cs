@@ -80,7 +80,7 @@ public class SessionHelper(ILogger<SessionHelper> logger, HttpHelper httpHelper,
                     Urls.PasswordRequired, authCts.Token);
                 if (auth is null)
                 {
-                    logger.LogWarning("Server did not return password authentication settings");
+                    logger.LogWarning("Server did not return launcher account settings");
                     return ConnectResult.Fail(ConnectStep.Authentication);
                 }
 
@@ -92,8 +92,17 @@ public class SessionHelper(ILogger<SessionHelper> logger, HttpHelper httpHelper,
             using (var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken))
             {
                 cts.CancelAfter(_requestTimeout);
-                // Profile lists are account-scoped and fetched after launcher authentication.
-                stateHelper.ProfileList = [];
+                if (stateHelper.ServerRequiresPassword)
+                {
+                    // Account-scoped profiles are fetched after authentication.
+                    stateHelper.ProfileList = [];
+                }
+                else
+                {
+                    var profiles = await httpHelper.GameServerGet<SPTProfilesResponse>(Urls.Profiles, cts.Token);
+                    if (profiles is null) return ConnectResult.Fail(ConnectStep.Profiles);
+                    stateHelper.ProfileList = profiles.Response;
+                }
             }
 
             step = ConnectStep.Types;
