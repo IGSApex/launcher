@@ -52,6 +52,16 @@ public sealed class LauncherAccountHelper(HttpHelper http, StateHelper state)
         return true;
     }
 
+    public async Task<bool> RefreshEditionsAsync(CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(state.LauncherToken)) return false;
+        var response = await http.GameServerPut<SPTTypesResponse>(Urls.AccountTypes,
+            new LauncherAccountRequest { Token = state.LauncherToken }, ct);
+        if (response?.Response is null) return false;
+        state.ProfileTypes = response.Response;
+        return true;
+    }
+
     public async Task<bool> RefreshProfilesAsync(CancellationToken ct = default)
     {
         if (string.IsNullOrWhiteSpace(state.LauncherToken)) return false;
