@@ -83,8 +83,23 @@ public class HttpHelper
 
         var content = new ByteArrayContent(SimpleZlib.CompressToBytes(JsonSerializer.Serialize(request), zlibConst.Z_BEST_COMPRESSION));
 
-        var task = await _httpClient.PutAsync(BuildGameUrl(url), content, token);
-
-        return JsonSerializer.Deserialize<T>(SimpleZlib.Decompress(await task.Content.ReadAsByteArrayAsync(token)));
+        using var task = await _httpClient.PutAsync(BuildGameUrl(url), content, token);
+        var bytes = await task.Content.ReadAsByteArrayAsync(token);
+        if (!task.IsSuccessStatusCode)
+            throw new HttpRequestException($"Server returned HTTP {(int)task.StatusCode} for {url}.", null, task.StatusCode);
+        if (bytes.Length == 0)
+            throw new HttpRequestException($"Server returned an empty response for {url}.");
+        var json = SimpleZlib.Decompress(bytes);
+        if (string.IsNullOrWhiteSpace(json))
+            throw new HttpRequestException($"Server returned empty JSON for {url}.");
+        try
+        {
+            return JsonSerializer.Deserialize<T>(json);
+        }
+        catch (JsonException ex)
+        {
+            _logger.LogWarning(ex, "Invalid server JSON response from {Url}", url);
+            throw new HttpRequestException($"Server returned invalid JSON for {url}.", ex);
+        }
     }
 }
