@@ -76,15 +76,23 @@ public class SessionHelper(ILogger<SessionHelper> logger, HttpHelper httpHelper,
             using (var authCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken))
             {
                 authCts.CancelAfter(_requestTimeout);
-                var auth = await httpHelper.GameServerGet<SPTPasswordRequiredResponse>(
-                    Urls.PasswordRequired, authCts.Token);
-                if (auth is null)
+                // Older/local SPT servers do not implement this optional endpoint.
+                // An absent or unsupported endpoint means standard profile login.
+                try
                 {
-                    logger.LogWarning("Server did not return launcher account settings");
-                    return ConnectResult.Fail(ConnectStep.Authentication);
+                    var auth = await httpHelper.GameServerGet<SPTPasswordRequiredResponse>(
+                        Urls.PasswordRequired, authCts.Token);
+                    stateHelper.ServerRequiresPassword = auth?.Response == true;
                 }
-
-                stateHelper.ServerRequiresPassword = auth.Response;
+                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+                {
+                    throw;
+                }
+                catch (Exception ex)
+                {
+                    logger.LogInformation(ex, "Launcher account policy endpoint unavailable; using standard profiles");
+                    stateHelper.ServerRequiresPassword = false;
+                }
             }
 
             step = ConnectStep.Profiles;
