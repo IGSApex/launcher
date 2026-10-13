@@ -112,17 +112,11 @@
             return;
         }
 
-        // Log into the profile.
-        if (!await SessionHelper.LoginToProfileAsync(profile))
-        {
-            StateHelper.LogoutAndDispose();
-            StopConnecting();
-            Snackbar.Add(LocaleHelper.Get("auto_connect_failed"), Severity.Error);
-            return;
-        }
-
+        // Passwords are never persisted for automatic login.
+        // Reconnect to the server and ask the user to authenticate interactively.
+        StopConnecting();
         StateHelper.SetAllowServerPage(true);
-        NavigationManager.NavigateTo("/Profile");
+        NavigationManager.NavigateTo("/Profiles");
     }
 
     private void StopConnecting()
