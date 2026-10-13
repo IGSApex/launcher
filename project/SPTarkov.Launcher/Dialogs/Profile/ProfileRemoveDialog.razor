@@ -29,7 +29,7 @@
 
                 @if (FikaInstalled)
                 {
-                    <MudTextField @bind-Value="Request.Password" InputType="InputType.Password" Label="Confirm account password" Variant="Variant.Outlined" Margin="Margin.Dense" Required="true"/>
+                    <MudTextField @bind-Value="Request.Password" InputType="InputType.Password" Label="Confirm account password" ShrinkLabel="true" Variant="Variant.Outlined" Margin="Margin.Dense" Required="true"/>
                 }
                 <MudContainer Class="mt-3 d-flex justify-end pa-0 gap-2">
                     <MudButton Class="mud-button-border-copy border-2 border-solid mud-button-inner-text-copy danger-button ml-auto" Variant="Variant.Filled" Color="Color.Default" @onclick="RunDeleteTask">@(LocaleHelper.Get("profile_remove_confirm"))</MudButton>
