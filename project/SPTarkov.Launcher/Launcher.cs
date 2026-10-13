@@ -58,6 +58,7 @@ public class Launcher
             .AddSingleton<TitleHelper>()
             .AddSingleton<TrayHelper>()
             .AddSingleton<SessionHelper>()
+            .AddSingleton<LauncherAccountHelper>()
             .AddSingleton<LocaleHelper>()
             .AddSingleton<FilePatcher>()
             .AddSingleton<WindowsClipboard>()
