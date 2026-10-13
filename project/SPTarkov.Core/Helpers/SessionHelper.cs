@@ -92,8 +92,8 @@ public class SessionHelper(ILogger<SessionHelper> logger, HttpHelper httpHelper,
             using (var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken))
             {
                 cts.CancelAfter(_requestTimeout);
-                var profiles = await httpHelper.GameServerGet<SPTProfilesResponse>(Urls.Profiles, cts.Token);
-                stateHelper.ProfileList = profiles?.Response!;
+                // Profile lists are account-scoped and fetched after launcher authentication.
+                stateHelper.ProfileList = [];
             }
 
             step = ConnectStep.Types;
@@ -141,7 +141,7 @@ public class SessionHelper(ILogger<SessionHelper> logger, HttpHelper httpHelper,
             using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             cts.CancelAfter(_requestTimeout);
 
-            var request = new SPTLoginRequest { Username = profile.Username, Password = password };
+            var request = new SPTLoginRequest { Username = profile.Username, Password = password, LauncherToken = stateHelper.LauncherToken };
             var response = await httpHelper.GameServerPut<SPTLoginResponse>(Urls.Login, request, cts.Token);
             if (response?.Response != true)
             {
@@ -166,7 +166,7 @@ public class SessionHelper(ILogger<SessionHelper> logger, HttpHelper httpHelper,
             using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             cts.CancelAfter(_requestTimeout);
 
-            var request = new SPTLoginRequest { Username = username, Password = password };
+            var request = new SPTLoginRequest { Username = username, Password = password, LauncherToken = stateHelper.LauncherToken };
             var login = await httpHelper.GameServerPut<SPTLoginResponse>(Urls.Login, request, cts.Token);
             if (login?.Response != true)
             {
