@@ -12,7 +12,7 @@ public record SPTLoginRequest
     [JsonPropertyName("launcherToken")]
     public string? LauncherToken { get; set; }
 
-    [Required]
+    // Legacy SPT wire compatibility only; game profiles have no password.
     [JsonPropertyName("password")]
     public string Password { get; set; } = "";
 }
