@@ -38,9 +38,36 @@ public class LocaleHelper
             var files = Directory.GetFiles(Paths.LocalesPath, "*.json");
             foreach (var file in files)
             {
+                // Ignore legacy locale filenames (English.json, French.json, etc.).
+                var fileName = Path.GetFileNameWithoutExtension(file);
+                if (!System.Text.RegularExpressions.Regex.IsMatch(fileName, @"^[a-z]{2,3}(?:-[A-Za-z0-9]{2,8})*$"))
+                {
+                    _logger.LogInformation("Skipping legacy locale file {File}", file);
+                    continue;
+                }
+
                 var json = File.ReadAllText(file);
                 var localeDict = JsonSerializer.Deserialize<Dictionary<string, string>>(json);
-                _listOfLocales.Add(localeDict!);
+                if (localeDict is null ||
+                    !localeDict.TryGetValue("ietf_tag", out var tag) ||
+                    !localeDict.ContainsKey("native_name"))
+                {
+                    _logger.LogWarning("Skipping invalid locale file {File}", file);
+                    continue;
+                }
+
+                if (_listOfLocales.Any(x => x.GetValueOrDefault("ietf_tag") == tag))
+                {
+                    _logger.LogWarning("Skipping duplicate locale {Locale} in {File}", tag, file);
+                    continue;
+                }
+
+                _listOfLocales.Add(localeDict);
+            }
+
+            if (_listOfLocales.Count == 0)
+            {
+                throw new InvalidOperationException("No valid locale files found in " + Paths.LocalesPath);
             }
 
             ApplyLocale(_defaultLocale);
