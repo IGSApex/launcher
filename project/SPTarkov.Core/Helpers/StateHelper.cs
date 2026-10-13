@@ -9,6 +9,9 @@ public class StateHelper(ILogger<StateHelper> logger)
     private const int ModPagesPanelCloseDelayMs = 300;
     private long _modPagesPanelHoverVersion;
 
+    public string? LauncherToken { get; set; }
+    public string? LauncherUsername { get; set; }
+    public string? LauncherEditionAllowed { get; set; }
     public bool ServerRequiresPassword { get; set; }
     public List<MiniProfile> ProfileList = [];
     public Dictionary<string, string> ProfileTypes = new();
@@ -28,6 +31,9 @@ public class StateHelper(ILogger<StateHelper> logger)
     {
         logger.LogInformation("Logged out of server {SelectedServerIpAddress} and disposed", SelectedServer?.IpAddress ?? "Unknown");
         ServerRequiresPassword = false;
+        LauncherToken = null;
+        LauncherUsername = null;
+        LauncherEditionAllowed = null;
         ProfileTypes = new Dictionary<string, string>();
         ProfileList = [];
         ModPages = [];
