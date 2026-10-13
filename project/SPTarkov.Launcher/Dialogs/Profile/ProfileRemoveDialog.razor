@@ -3,6 +3,7 @@
 @inject HttpHelper HttpHelper
 @inject LocaleHelper LocaleHelper
 @inject GameHelper GameHelper
+@inject LauncherAccountHelper Accounts
 
 <MudDialog Class="mud-background-gray border-2 border-solid mud-border-lines-default">
     <DialogContent>
@@ -27,7 +28,7 @@
                     <MudText Typo="Typo.body2" Class="card-mono">@MiniProfile.ProfileId</MudText>
                 </div>
 
-                @if (FikaInstalled)
+                @if (false)
                 {
                     <MudTextField @bind-Value="Request.Password" InputType="InputType.Password" Label="Confirm account password" ShrinkLabel="true" Variant="Variant.Outlined" Margin="Margin.Dense" Required="true"/>
                 }
@@ -63,7 +64,7 @@
 
     private async Task RunDeleteTask()
     {
-        if (FikaInstalled && string.IsNullOrWhiteSpace(Request.Password)) return;
+        if (string.IsNullOrWhiteSpace(StateHelper.LauncherToken)) return;
         bool result;
         _requestInProgress = true;
         try
@@ -102,6 +103,7 @@
             StateHasChanged();
             await Task.Delay(20);
 
+            Request.LauncherToken = StateHelper.LauncherToken;
             var returnResult = await HttpHelper.GameServerPut<SPTRemoveResponse>(Urls.Remove, Request, Token.Token);
 
             if (returnResult is null)
@@ -110,7 +112,7 @@
                 return false;
             }
 
-            StateHelper.ProfileList = returnResult.Profiles;
+            if (returnResult.Response) await Accounts.RefreshProfilesAsync(Token.Token);
             var result = returnResult.Response;
 
             if (!result)
