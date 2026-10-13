@@ -55,6 +55,7 @@ public class SessionHelper(ILogger<SessionHelper> logger, HttpHelper httpHelper,
     {
         stateHelper.SetSelectedServer(server);
         stateHelper.ModPages = [];
+        stateHelper.ServerRequiresPassword = false;
 
         var step = ConnectStep.Ping;
         try
@@ -68,6 +69,20 @@ public class SessionHelper(ILogger<SessionHelper> logger, HttpHelper httpHelper,
                 {
                     return ConnectResult.Fail(ConnectStep.Ping);
                 }
+            }
+
+            // Older servers may not expose this endpoint; default to no password prompt.
+            try
+            {
+                using var authCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+                authCts.CancelAfter(_requestTimeout);
+                var auth = await httpHelper.GameServerGet<SPTPasswordRequiredResponse>(
+                    Urls.PasswordRequired, authCts.Token);
+                stateHelper.ServerRequiresPassword = auth?.Response == true;
+            }
+            catch (Exception ex) when (!cancellationToken.IsCancellationRequested)
+            {
+                logger.LogDebug(ex, "Server does not expose password requirement settings");
             }
 
             step = ConnectStep.Profiles;
