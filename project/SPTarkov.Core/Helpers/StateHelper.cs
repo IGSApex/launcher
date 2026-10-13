@@ -38,8 +38,14 @@ public class StateHelper(ILogger<StateHelper> logger)
 
     public void SetSelectedServer(Server? server)
     {
+        // Keep the fetched authentication policy when the same server is selected again.
+        // Reset only when switching servers or disconnecting.
+        if (!string.Equals(SelectedServer?.IpAddress, server?.IpAddress, StringComparison.OrdinalIgnoreCase))
+        {
+            ServerRequiresPassword = false;
+        }
+
         SelectedServer = server;
-        ServerRequiresPassword = false;
     }
 
     public void SetSelectedProfile(MiniProfile? miniProfile)
