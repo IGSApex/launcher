@@ -59,6 +59,11 @@
                 Snackbar.Add("Server connection failed: " + result.FailedStep, Severity.Error);
                 return;
             }
+            if (!StateHelper.ServerRequiresPassword)
+            {
+                MudDialog.Close(DialogResult.Ok(Server));
+                return;
+            }
             if (_register)
             {
                 _status = "Creating launcher account...";
