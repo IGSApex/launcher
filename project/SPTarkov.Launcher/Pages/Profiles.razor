@@ -76,14 +76,7 @@
 
     private async Task RunLoginTaskWithDetails()
     {
-        var dialogParams = new DialogParameters
-        {
-            {
-                "MiniProfile", PartialProfile
-            }
-        };
-
-        var dialog = await DialogService.ShowAsync<ProfileLoginDialog>("ProfileLoginDialog", dialogParams, ConfigHelper.DialogOptions);
+        var dialog = await DialogService.ShowAsync<ProfileLoginDialog>("ProfileLoginDialog", ConfigHelper.DialogOptions);
         var result = await dialog.Result;
 
         if (result?.Canceled is false && result.Data is MiniProfile profile)
