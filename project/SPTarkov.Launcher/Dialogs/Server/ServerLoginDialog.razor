@@ -103,9 +103,9 @@
             }
             MudDialog.Close(DialogResult.Ok(Server));
         }
-        catch (Exception)
+        catch (Exception ex)
         {
-            Snackbar.Add("Unable to connect or authenticate with this server.", Severity.Error);
+            Snackbar.Add($"Launcher account request failed: {ex.GetBaseException().Message}", Severity.Error);
         }
         finally
         {
