@@ -55,7 +55,7 @@ public sealed class LauncherAccountHelper(HttpHelper http, StateHelper state)
     public async Task<bool> RefreshProfilesAsync(CancellationToken ct = default)
     {
         if (string.IsNullOrWhiteSpace(state.LauncherToken)) return false;
-        var response = await http.GameServerPut<SPTProfilesResponse>(Urls.Profiles,
+        var response = await http.GameServerPut<SPTProfilesResponse>(Urls.AccountProfiles,
             new LauncherAccountRequest { Token = state.LauncherToken }, ct);
         if (response?.Response is null) return false;
         state.ProfileList = response.Response;
