@@ -17,10 +17,6 @@
             {
                 <MudForm Model="Request" @bind-IsValid="@_success" Class="gap-2 mt-3">
                     <MudTextField Immediate="true" @bind-Value="Request.Username" Label="@(LocaleHelper.Get("profile_login_username"))" Variant="Variant.Outlined" Margin="Margin.Dense" Disabled="@(MiniProfile is not null)" Required="true"/>
-                    @if (false)
-                    {
-                        <MudTextField @bind-Value="Request.Password" InputType="InputType.Password" Label="Password" ShrinkLabel="true" Variant="Variant.Outlined" Margin="Margin.Dense" Required="true"/>
-                    }
                 </MudForm>
             }
 
@@ -42,7 +38,6 @@
     private IMudDialogInstance MudDialog { get; set; } = default!;
 
     private bool _success;
-    private bool FikaInstalled { get; set; }
     private bool _requestInProgress;
     private string _taskText = "";
     private SPTLoginRequest Request { get; } = new();
@@ -52,20 +47,18 @@
     protected override async Task OnInitializedAsync()
     {
         await base.OnInitializedAsync();
-        FikaInstalled = false;
 
         if (MiniProfile is null)
         {
             return;
         }
 
-        // Always prompt for a password, including when a profile card was selected.
         Request.Username = MiniProfile.Username;
     }
 
     private async Task RunLoginTask()
     {
-        if (string.IsNullOrWhiteSpace(Request.Username) || (FikaInstalled && string.IsNullOrWhiteSpace(Request.Password))) return;
+        if (string.IsNullOrWhiteSpace(Request.Username)) return;
         _requestInProgress = true;
         _taskText = LocaleHelper.Get("profile_login_task_1");
         StateHasChanged();
@@ -73,7 +66,7 @@
         await Task.Delay(250); // Prevents dialogue flash.
 
         var success = MiniProfile is not null
-            ? await SessionHelper.LoginToProfileAsync(MiniProfile, Request.Password, Token.Token)
+            ? await SessionHelper.LoginToProfileAsync(MiniProfile, cancellationToken: Token.Token)
             : await LoginWithDetails();
 
         if (success)
@@ -83,13 +76,13 @@
         }
         else
         {
-            AbortOrFail(FikaInstalled ? "Wrong password!" : LocaleHelper.Get("profile_login_task_fail"));
+            AbortOrFail(LocaleHelper.Get("profile_login_task_fail"));
         }
     }
 
     private async Task<bool> LoginWithDetails()
     {
-        var profile = await SessionHelper.LoginWithDetailsAsync(Request.Username, Request.Password, Token.Token);
+        var profile = await SessionHelper.LoginWithDetailsAsync(Request.Username, "", Token.Token);
         if (profile is null)
         {
             return false;
