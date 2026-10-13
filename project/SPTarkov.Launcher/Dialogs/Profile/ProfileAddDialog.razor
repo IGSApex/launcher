@@ -41,12 +41,7 @@
                         </MudCard>
                     }
 
-                    <MudTextField Immediate="true" @bind-Value="Request.Username" Label="@(FikaInstalled ? "Username" : LocaleHelper.Get("profile_add_name"))" HelperText="@(LocaleHelper.Get("profile_add_name_help"))" ShrinkLabel="true" Variant="Variant.Outlined" Margin="Margin.Dense" Required="true" OnKeyDown="SubmitOnEnter"/>
-                    @if (false)
-                    {
-                        <MudTextField Immediate="true" @bind-Value="Request.Password" InputType="InputType.Password" Label="Password" HelperText="Minimum 8 characters" ShrinkLabel="true" Variant="Variant.Outlined" Margin="Margin.Dense" Required="true"/>
-                        <MudTextField Immediate="true" @bind-Value="_confirmPassword" InputType="InputType.Password" Label="Confirm Password" ShrinkLabel="true" Variant="Variant.Outlined" Margin="Margin.Dense" Required="true" Error="@(!string.IsNullOrEmpty(_confirmPassword) && _confirmPassword != Request.Password)" ErrorText="Passwords do not match"/>
-                    }
+                    <MudTextField Immediate="true" @bind-Value="Request.Username" Label="@(LocaleHelper.Get("profile_add_name"))" HelperText="@(LocaleHelper.Get("profile_add_name_help"))" ShrinkLabel="true" Variant="Variant.Outlined" Margin="Margin.Dense" Required="true" OnKeyDown="SubmitOnEnter"/>
                 </MudForm>
 
                 <div class="mt-2 d-flex justify-end gap-2">
@@ -63,8 +58,6 @@
     private IMudDialogInstance MudDialog { get; set; } = default!;
 
     private bool _requestInProgress;
-    private bool FikaInstalled { get; set; }
-    private string _confirmPassword = "";
     private string _taskText = "";
     public SPTRegisterRequest Request = new();
     private List<string> ServerEditions { get; set; } = [];
@@ -87,7 +80,6 @@
 
     protected override void OnInitialized()
     {
-        FikaInstalled = GameHelper.RequiresPasswordAuthentication();
         ServerEditions = StateHelper.ServerRequiresPassword
             ? StateHelper.ProfileTypes.Keys.Where(e => string.Equals(e, StateHelper.LauncherEditionAllowed, StringComparison.OrdinalIgnoreCase)).ToList()
             : StateHelper.ProfileTypes.Keys.ToList();
