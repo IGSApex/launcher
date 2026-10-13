@@ -9,6 +9,7 @@ public class StateHelper(ILogger<StateHelper> logger)
     private const int ModPagesPanelCloseDelayMs = 300;
     private long _modPagesPanelHoverVersion;
 
+    public bool ServerRequiresPassword { get; set; }
     public List<MiniProfile> ProfileList = [];
     public Dictionary<string, string> ProfileTypes = new();
     public List<ModPage> ModPages = [];
@@ -26,6 +27,7 @@ public class StateHelper(ILogger<StateHelper> logger)
     public void LogoutAndDispose()
     {
         logger.LogInformation("Logged out of server {SelectedServerIpAddress} and disposed", SelectedServer?.IpAddress ?? "Unknown");
+        ServerRequiresPassword = false;
         ProfileTypes = new Dictionary<string, string>();
         ProfileList = [];
         ModPages = [];
@@ -37,6 +39,7 @@ public class StateHelper(ILogger<StateHelper> logger)
     public void SetSelectedServer(Server? server)
     {
         SelectedServer = server;
+        ServerRequiresPassword = false;
     }
 
     public void SetSelectedProfile(MiniProfile? miniProfile)
