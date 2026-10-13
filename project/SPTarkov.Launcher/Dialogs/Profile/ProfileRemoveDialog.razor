@@ -2,6 +2,7 @@
 @inject StateHelper StateHelper
 @inject HttpHelper HttpHelper
 @inject LocaleHelper LocaleHelper
+@inject GameHelper GameHelper
 
 <MudDialog Class="mud-background-gray border-2 border-solid mud-border-lines-default">
     <DialogContent>
@@ -26,7 +27,10 @@
                     <MudText Typo="Typo.body2" Class="card-mono">@MiniProfile.ProfileId</MudText>
                 </div>
 
-                <MudTextField @bind-Value="Request.Password" InputType="InputType.Password" Label="Confirm account password" Variant="Variant.Outlined" Margin="Margin.Dense" Required="true"/>
+                @if (FikaInstalled)
+                {
+                    <MudTextField @bind-Value="Request.Password" InputType="InputType.Password" Label="Confirm account password" Variant="Variant.Outlined" Margin="Margin.Dense" Required="true"/>
+                }
                 <MudContainer Class="mt-3 d-flex justify-end pa-0 gap-2">
                     <MudButton Class="mud-button-border-copy border-2 border-solid mud-button-inner-text-copy danger-button ml-auto" Variant="Variant.Filled" Color="Color.Default" @onclick="RunDeleteTask">@(LocaleHelper.Get("profile_remove_confirm"))</MudButton>
                     <MudButton Class="mud-button-border-copy border-2 border-solid mud-button-inner-text-copy" Variant="Variant.Filled" Color="Color.Default" @onclick="UserCancelled">@(LocaleHelper.Get("profile_remove_cancel"))</MudButton>
@@ -44,6 +48,7 @@
     private IMudDialogInstance MudDialog { get; set; } = default!;
 
     private bool _requestInProgress;
+    private bool FikaInstalled { get; set; }
     private string _taskText = "";
     private SPTLoginRequest Request { get; } = new();
     private CancellationTokenSource Token { get; set; } = new();
@@ -52,12 +57,13 @@
     protected override void OnInitialized()
     {
         Request.Username = MiniProfile.Username;
+        FikaInstalled = GameHelper.IsFikaInstalled();
         base.OnInitialized();
     }
 
     private async Task RunDeleteTask()
     {
-        if (string.IsNullOrWhiteSpace(Request.Password)) return;
+        if (FikaInstalled && string.IsNullOrWhiteSpace(Request.Password)) return;
         bool result;
         _requestInProgress = true;
         try
