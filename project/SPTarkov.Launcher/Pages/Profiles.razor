@@ -32,8 +32,8 @@
                     <MudPaper Elevation="2" Class="pa-4 border-2 border-solid mud-border-lines-default card-container">
                         <MudContainer Class="d-flex flex-column align-center gap-2 py-12">
                             <MudIcon Icon="@Icons.Material.Filled.PersonSearch" Style="font-size: 4rem;" Class="mud-text-secondary"/>
-                            <MudText Typo="Typo.h6" Align="Align.Center">@(LocaleHelper.Get("profiles_empty_title"))</MudText>
-                            <MudText Align="Align.Center" Class="mud-text-secondary">@(LocaleHelper.Get("profiles_empty_subtitle"))</MudText>
+                            <MudText Typo="Typo.h6" Align="Align.Center">@((StateHelper.ServerRequiresPassword ? "You do not have any profiles to choose from." : LocaleHelper.Get("profiles_empty_title")))</MudText>
+                            <MudText Align="Align.Center" Class="mud-text-secondary">@((StateHelper.ServerRequiresPassword ? "Please create a new profile." : LocaleHelper.Get("profiles_empty_subtitle")))</MudText>
                         </MudContainer>
                     </MudPaper>
                 </MudItem>
