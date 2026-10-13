@@ -15,6 +15,7 @@ public class Urls
     public const string Version = "/launcher/v2/version";
     public const string ModPages = "/launcher/v2/mod-pages";
     public const string Profiles = "/launcher/v2/profiles";
+    public const string AccountTypes = "/launcher/v2/account/types";
     public const string AccountProfiles = "/launcher/v2/account/profiles";
     public const string Profile = "/launcher/v2/profile";
     public const string Wipe = "/launcher/v2/wipe";
