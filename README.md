@@ -1,6 +1,6 @@
 # Launcher
 
-Custom launcher for Escape From Tarkov to start the game in offline mode
+Custom launcher for Escape From Tarkov to start the game in offline mode, with password support for user accounts on Fika server.
 
 **Project**        | **Function**
 ------------------ | --------------------------------------------
