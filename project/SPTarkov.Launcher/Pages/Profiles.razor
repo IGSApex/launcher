@@ -2,6 +2,7 @@
 
 @inject IDialogService DialogService
 @inject StateHelper StateHelper
+@inject LauncherAccountHelper Accounts
 @inject ConfigHelper ConfigHelper
 @inject NavigationManager NavigationManager
 @inject LocaleHelper LocaleHelper
@@ -87,13 +88,13 @@
         }
     }
 
-    private Task ReturnToServers()
+    private async Task ReturnToServers()
     {
+        try { await Accounts.LogoutAsync(); } catch { /* Local session is cleared even if server is unavailable. */ }
         StateHelper.SetSelectedServer(null);
         StateHelper.SetAllowServerPage(false);
         NavigationManager.NavigateTo("/ServerPageWrapper/false");
 
-        return Task.CompletedTask;
     }
 
 }
