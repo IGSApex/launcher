@@ -35,34 +35,42 @@ public class LocaleHelper
                 throw new Exception("Directory does not exist");
             }
 
-            var files = Directory.GetFiles(Paths.LocalesPath, "*.json");
+            // Installed SPT runtimes may contain both legacy named locales
+            // (English.json) and new IETF-tag locales (en.json).
+            // Prefer the tagged version, but retain the legacy version as fallback.
+            var files = Directory.GetFiles(Paths.LocalesPath, "*.json")
+                .OrderBy(file => Path.GetFileNameWithoutExtension(file).Length)
+                .ThenBy(file => file, StringComparer.OrdinalIgnoreCase);
             foreach (var file in files)
             {
-                // Ignore legacy locale filenames (English.json, French.json, etc.).
-                var fileName = Path.GetFileNameWithoutExtension(file);
-                if (!System.Text.RegularExpressions.Regex.IsMatch(fileName, @"^[a-z]{2,3}(?:-[A-Za-z0-9]{2,8})*$"))
+                try
                 {
-                    _logger.LogInformation("Skipping legacy locale file {File}", file);
-                    continue;
-                }
+                    var localeDict = JsonSerializer.Deserialize<Dictionary<string, string>>(File.ReadAllText(file));
+                    if (localeDict is null ||
+                        !localeDict.TryGetValue("ietf_tag", out var tag) ||
+                        string.IsNullOrWhiteSpace(tag) ||
+                        !localeDict.ContainsKey("native_name"))
+                    {
+                        _logger.LogWarning("Skipping invalid locale file {File}", file);
+                        continue;
+                    }
 
-                var json = File.ReadAllText(file);
-                var localeDict = JsonSerializer.Deserialize<Dictionary<string, string>>(json);
-                if (localeDict is null ||
-                    !localeDict.TryGetValue("ietf_tag", out var tag) ||
-                    !localeDict.ContainsKey("native_name"))
+                    if (_listOfLocales.Any(x => x.GetValueOrDefault("ietf_tag") == tag))
+                    {
+                        _logger.LogInformation("Skipping duplicate locale {Locale} from {File}", tag, file);
+                        continue;
+                    }
+
+                    _listOfLocales.Add(localeDict);
+                }
+                catch (JsonException ex)
                 {
-                    _logger.LogWarning("Skipping invalid locale file {File}", file);
-                    continue;
+                    _logger.LogWarning(ex, "Skipping malformed locale file {File}", file);
                 }
-
-                if (_listOfLocales.Any(x => x.GetValueOrDefault("ietf_tag") == tag))
+                catch (IOException ex)
                 {
-                    _logger.LogWarning("Skipping duplicate locale {Locale} in {File}", tag, file);
-                    continue;
+                    _logger.LogWarning(ex, "Unable to read locale file {File}", file);
                 }
-
-                _listOfLocales.Add(localeDict);
             }
 
             if (_listOfLocales.Count == 0)
