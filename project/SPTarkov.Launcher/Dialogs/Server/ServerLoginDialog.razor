@@ -57,6 +57,22 @@
             _connected = result.Success;
             if (!_connected) Snackbar.Add("Server connection failed: " + result.FailedStep, Severity.Error);
             else if (!StateHelper.ServerRequiresPassword) MudDialog.Close(DialogResult.Ok(Server));
+            else
+            {
+                _status = "Restoring launcher account session...";
+                try
+                {
+                    if (await Accounts.TryAutoLoginAsync())
+                    {
+                        MudDialog.Close(DialogResult.Ok(Server));
+                        return;
+                    }
+                }
+                catch (Exception)
+                {
+                    // Failed automatic login falls back to the normal login form.
+                }
+            }
         }
         finally { _busy = false; }
     }
