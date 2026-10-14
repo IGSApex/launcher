@@ -88,10 +88,11 @@
         }
     }
 
-    private async Task ReturnToServers()
+    private void ReturnToServers()
     {
-        try { await Accounts.LogoutAsync(); } catch { /* Local session is cleared even if server is unavailable. */ }
-        StateHelper.SetSelectedServer(null);
+        // Disconnect from the selected game server, not the launcher account.
+        // Keep the authenticated account session for automatic server-card login.
+        StateHelper.LogoutAndDispose();
         StateHelper.SetAllowServerPage(false);
         NavigationManager.NavigateTo("/ServerPageWrapper/false");
 
