@@ -18,4 +18,6 @@ public class Urls
     public const string AccountProfiles = "/launcher/v2/account/profiles";
     public const string Profile = "/launcher/v2/profile";
     public const string Wipe = "/launcher/v2/wipe";
+    public const string Bundles = "/singleplayer/bundles";
+    public const string BundleFile = "/files/bundle/";
 }
