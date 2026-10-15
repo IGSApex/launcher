@@ -6,6 +6,7 @@ using SPTarkov.Core.Configuration;
 using SPTarkov.Core.Patching;
 using SPTarkov.Core.SPT;
 using SPTarkov.Core.SPT.Responses;
+using SPTarkov.Core.SPT.Bundles;
 using Version = SemanticVersioning.Version;
 
 namespace SPTarkov.Core.Helpers;
@@ -19,6 +20,7 @@ public class GameHelper
     private readonly FilePatcher _filePatcher;
     private readonly LocaleHelper _localeHelper;
     private readonly LinuxHelper _linuxHelper;
+    private readonly BundleHelper _bundleHelper;
 
     public string? ErrorMessage;
 
@@ -52,7 +54,8 @@ public class GameHelper
         FilePatcher filePatcher,
         HttpHelper httpHelper,
         LocaleHelper localeHelper,
-        LinuxHelper linuxHelper
+        LinuxHelper linuxHelper,
+        BundleHelper bundleHelper
     )
     {
         _stateHelper = stateHelper;
@@ -62,6 +65,7 @@ public class GameHelper
         _httpHelper = httpHelper;
         _localeHelper = localeHelper;
         _linuxHelper = linuxHelper;
+        _bundleHelper = bundleHelper;
     }
 
     public async Task<bool> CheckGame()
@@ -95,6 +99,17 @@ public class GameHelper
         }
 
         return true;
+    }
+
+    public async Task<bool> AcquireBundles(IProgress<BundleProgress>? progress, CancellationToken token)
+    {
+        if (await _bundleHelper.AcquireBundlesAsync(progress, token))
+        {
+            return true;
+        }
+
+        ErrorMessage = _bundleHelper.ErrorMessage ?? "Failed to acquire required SPT bundles";
+        return false;
     }
 
     public bool LaunchGame()
