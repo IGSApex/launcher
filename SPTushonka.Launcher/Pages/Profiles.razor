@@ -13,6 +13,8 @@
                    IconColor="Color.Error">@(LocaleHelper.Get("profiles_disconnect"))</MudButton>
         <MudButton Class="mud-button-border-copy border-2 border-solid mud-button-inner-text-copy" Color="Color.Dark" StartIcon="@Icons.Material.Filled.PersonAdd" Size="Size.Medium" OnClick="RunAddTask" Variant="Variant.Filled"
                    IconColor="Color.Success">@(LocaleHelper.Get("profiles_create"))</MudButton>
+        <MudButton Class="mud-button-border-copy border-2 border-solid mud-button-inner-text-copy" Color="Color.Dark" StartIcon="@Icons.Material.Filled.Extension" Size="Size.Medium" OnClick="OpenModManager" Variant="Variant.Filled"
+                   IconColor="Color.Info">MOD MANAGER</MudButton>
         @if (ProfilesList.Count == 0)
         {
             <MudButton Class="mud-button-border-copy border-2 border-solid mud-button-inner-text-copy" Color="Color.Dark" StartIcon="@Icons.Material.Filled.Login" Size="Size.Medium" OnClick="RunLoginTaskWithDetails" Variant="Variant.Filled"
@@ -86,6 +88,11 @@
             StateHelper.SetSelectedProfile(profile);
             NavigationManager.NavigateTo("/ServerPageWrapper/false");
         }
+    }
+
+    private void OpenModManager()
+    {
+        NavigationManager.NavigateTo("/ModManager");
     }
 
     private void ReturnToServers()
