@@ -26,7 +26,7 @@
                 {
                     <MudTextField @bind-Value="_confirm" Label="Confirm password" InputType="InputType.Password" Variant="Variant.Outlined" Required="true"/>
                 }
-                <MudCheckBox T="bool" @bind-Value="_rememberLogin" Label="Remember Login" Color="Color.Primary" />
+                <MudCheckBox T="bool" Value="_rememberLogin" ValueChanged="OnRememberLoginChanged" Label="Remember Login" Color="Color.Primary" />
                 <div class="d-flex gap-2">
                     <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="Submit" Disabled="@(!CanSubmit)">@(_register ? "Register" : "Login")</MudButton>
                     <MudButton OnClick="ToggleMode">@(_register ? "Back to login" : "Register")</MudButton>
@@ -83,6 +83,12 @@
     {
         StateHelper.SetAllowServerPage(true);
         MudDialog.Close(DialogResult.Ok(Server));
+    }
+
+    private void OnRememberLoginChanged(bool value)
+    {
+        _rememberLogin = value;
+        Accounts.SetRememberLogin(Server.IpAddress, value);
     }
 
     private bool _register;
