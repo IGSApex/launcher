@@ -1,6 +1,6 @@
-# IGS Gaming Community — SPT Launcher
+# SPT Launcher
 
-Customized [SP-Tushonka launcher](https://github.com/SP-Tushonka/launcher) for the IGS Gaming Community, targeting SPT 4.1.6. This repository is the active launcher working directory; `IGSApex/launcher-old` is the earlier implementation.
+Customized [SP-Tushonka launcher](https://github.com/SP-Tushonka/launcher) for the Community, targeting SPT 4.1.6. This repository is the active launcher working directory; `IGSApex/launcher-old` is the earlier implementation.
 
 ## Projects
 
