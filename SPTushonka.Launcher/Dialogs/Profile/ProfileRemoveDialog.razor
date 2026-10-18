@@ -64,7 +64,11 @@
 
     private async Task RunDeleteTask()
     {
-        if (string.IsNullOrWhiteSpace(StateHelper.LauncherToken)) return;
+        if (StateHelper.ServerRequiresPassword && string.IsNullOrWhiteSpace(StateHelper.LauncherToken))
+        {
+            AbortOrFail("Launcher account session expired. Reconnect to the server.");
+            return;
+        }
         bool result;
         _requestInProgress = true;
         try
@@ -112,7 +116,8 @@
                 return false;
             }
 
-            if (returnResult.Response) await Accounts.RefreshProfilesAsync(Token.Token);
+            if (returnResult.Response && StateHelper.ServerRequiresPassword)
+                await Accounts.RefreshProfilesAsync(Token.Token);
             var result = returnResult.Response;
 
             if (!result)
