@@ -2,6 +2,8 @@
 @inject StateHelper StateHelper
 @inject HttpHelper HttpHelper
 @inject LocaleHelper LocaleHelper
+@inject GameHelper GameHelper
+@inject LauncherAccountHelper Accounts
 
 <MudDialog Class="mud-background-gray border-2 border-solid mud-border-lines-default">
     <DialogContent>
@@ -26,6 +28,10 @@
                     <MudText Typo="Typo.body2" Class="card-mono">@MiniProfile.ProfileId</MudText>
                 </div>
 
+                @if (false)
+                {
+                    <MudTextField @bind-Value="Request.Password" InputType="InputType.Password" Label="Confirm account password" ShrinkLabel="true" Variant="Variant.Outlined" Margin="Margin.Dense" Required="true"/>
+                }
                 <MudContainer Class="mt-3 d-flex justify-end pa-0 gap-2">
                     <MudButton Class="mud-button-border-copy border-2 border-solid mud-button-inner-text-copy danger-button ml-auto" Variant="Variant.Filled" Color="Color.Default" @onclick="RunDeleteTask">@(LocaleHelper.Get("profile_remove_confirm"))</MudButton>
                     <MudButton Class="mud-button-border-copy border-2 border-solid mud-button-inner-text-copy" Variant="Variant.Filled" Color="Color.Default" @onclick="UserCancelled">@(LocaleHelper.Get("profile_remove_cancel"))</MudButton>
@@ -43,6 +49,7 @@
     private IMudDialogInstance MudDialog { get; set; } = default!;
 
     private bool _requestInProgress;
+    private bool FikaInstalled { get; set; }
     private string _taskText = "";
     private SPTLoginRequest Request { get; } = new();
     private CancellationTokenSource Token { get; set; } = new();
@@ -51,11 +58,13 @@
     protected override void OnInitialized()
     {
         Request.Username = MiniProfile.Username;
+        FikaInstalled = GameHelper.RequiresPasswordAuthentication();
         base.OnInitialized();
     }
 
     private async Task RunDeleteTask()
     {
+        if (string.IsNullOrWhiteSpace(StateHelper.LauncherToken)) return;
         bool result;
         _requestInProgress = true;
         try
@@ -94,6 +103,7 @@
             StateHasChanged();
             await Task.Delay(20);
 
+            Request.LauncherToken = StateHelper.LauncherToken;
             var returnResult = await HttpHelper.GameServerPut<SPTRemoveResponse>(Urls.Remove, Request, Token.Token);
 
             if (returnResult is null)
@@ -102,7 +112,7 @@
                 return false;
             }
 
-            StateHelper.ProfileList = returnResult.Profiles;
+            if (returnResult.Response) await Accounts.RefreshProfilesAsync(Token.Token);
             var result = returnResult.Response;
 
             if (!result)
