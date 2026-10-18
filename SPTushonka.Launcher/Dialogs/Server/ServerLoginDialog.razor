@@ -56,7 +56,7 @@
             var result = await SessionHelper.ConnectToServerAsync(Server);
             _connected = result.Success;
             if (!_connected) Snackbar.Add("Server connection failed: " + result.FailedStep, Severity.Error);
-            else if (!StateHelper.ServerRequiresPassword) MudDialog.Close(DialogResult.Ok(Server));
+            else if (!StateHelper.ServerRequiresPassword) CompleteConnection();
             else
             {
                 _status = "Restoring launcher account session...";
@@ -64,7 +64,7 @@
                 {
                     if (await Accounts.TryAutoLoginAsync())
                     {
-                        MudDialog.Close(DialogResult.Ok(Server));
+                        CompleteConnection();
                         return;
                     }
                 }
@@ -76,6 +76,12 @@
         }
         finally { _busy = false; }
     }
+    private void CompleteConnection()
+    {
+        StateHelper.SetAllowServerPage(true);
+        MudDialog.Close(DialogResult.Ok(Server));
+    }
+
     private bool _register;
     private bool CanSubmit => !string.IsNullOrWhiteSpace(_username) && _password.Length >= 8 && (!_register || _confirm == _password);
 
@@ -92,7 +98,7 @@
             if (!_connected) return;
             if (!StateHelper.ServerRequiresPassword)
             {
-                MudDialog.Close(DialogResult.Ok(Server));
+                CompleteConnection();
                 return;
             }
             if (_register)
@@ -117,7 +123,7 @@
                 await Accounts.LogoutAsync();
                 return;
             }
-            MudDialog.Close(DialogResult.Ok(Server));
+            CompleteConnection();
         }
         catch (Exception ex)
         {
