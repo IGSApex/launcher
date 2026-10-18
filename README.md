@@ -24,17 +24,6 @@ Open **Mod Manager** from the Profiles page. The left column shows files publish
 
 **Caution:** The server is the source of truth. If a player's locally modified DLL has the same version but a different hash, Update can replace it with the server copy. Back up installations and test with disposable game folders. The download path, backups, and all update behavior still require end-to-end testing. Files are executable code; only connect to trusted servers.
 
-## Build (Windows)
-
-Install the .NET 10 SDK, Visual Studio 2026 or another compatible C# IDE, and WebView2. From the repository root:
-
-```powershell
-dotnet restore
-dotnet publish "./SPTushonka.Launcher/SPTushonka.Launcher.csproj" -c Release --self-contained false --framework net10.0 --runtime win-x64 -p:PublishSingleFile=true -p:SptVersion=4.1.6 -o "./LauncherPublish"
-```
-
-For Linux, use `linux-x64` and install the required WebKit GTK runtime. Keep the server and launcher API versions aligned. If publish fails, check the first compiler/build error and any custom post-build copy steps before assuming the output is complete.
-
 ## Related repositories
 
 - [IGSApex/server-csharp](https://github.com/IGSApex/server-csharp) — account APIs and client mod distribution.
