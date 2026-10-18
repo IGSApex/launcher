@@ -73,9 +73,9 @@ public sealed class LauncherAccountHelper(HttpHelper http, StateHelper state)
         WriteSettings(settings);
     }
 
-    public async Task<bool> TryAutoLoginAsync(CancellationToken ct = default)
+    public async Task<bool> TryAutoLoginAsync(string? serverAddress = null, CancellationToken ct = default)
     {
-        var server = state.SelectedServer?.IpAddress;
+        var server = serverAddress ?? state.SelectedServer?.IpAddress;
         if (string.IsNullOrWhiteSpace(server)) return false;
         if (!ReadSettings().TryGetValue(server, out var saved) ||
             !saved.RememberLogin || string.IsNullOrWhiteSpace(saved.Token)) return false;
