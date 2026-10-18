@@ -21,69 +21,83 @@ public sealed class LauncherAccountResponse
     public List<string> SavedProfiles { get; set; } = [];
 }
 
-/// <summary>Launcher-lifetime session; local file is a convenience marker, never authentication authority.</summary>
+/// <summary>Per-server remembered login preferences and sessions.</summary>
 public sealed class LauncherAccountHelper(HttpHelper http, StateHelper state)
 {
-    private static readonly string TempPath = Path.Combine(AppContext.BaseDirectory, "user", "profiles", "launcher", "launcherTemp.json");
-
-    public static void DeleteTemporarySessionMarker()
-    {
-        if (File.Exists(TempPath)) File.Delete(TempPath);
-    }
+    private static readonly string SettingsPath = Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+        "IGSApex", "SPTLauncher", "remembered-logins.json");
     private static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = true };
-    public static void StartTemporarySession()
+
+    private sealed class SavedLogin
     {
-        Directory.CreateDirectory(Path.GetDirectoryName(TempPath)!);
-        DeleteTemporarySessionMarker();
-        File.WriteAllText(TempPath, "{}");
+        public bool RememberLogin { get; set; }
+        public string Username { get; set; } = "";
+        public string Token { get; set; } = "";
     }
 
+    private static Dictionary<string, SavedLogin> ReadSettings()
+    {
+        try
+        {
+            if (!File.Exists(SettingsPath)) return new(StringComparer.OrdinalIgnoreCase);
+            return JsonSerializer.Deserialize<Dictionary<string, SavedLogin>>(File.ReadAllText(SettingsPath))
+                ?? new(StringComparer.OrdinalIgnoreCase);
+        }
+        catch (IOException) { return new(StringComparer.OrdinalIgnoreCase); }
+        catch (UnauthorizedAccessException) { return new(StringComparer.OrdinalIgnoreCase); }
+        catch (JsonException) { return new(StringComparer.OrdinalIgnoreCase); }
+    }
 
-    private sealed class SessionEntry
+    private static void WriteSettings(Dictionary<string, SavedLogin> settings)
     {
-        public string username { get; set; } = "";
-        public string password { get; set; } = "";
-        public string sessionToken { get; set; } = "";
+        Directory.CreateDirectory(Path.GetDirectoryName(SettingsPath)!);
+        var temp = SettingsPath + ".tmp";
+        File.WriteAllText(temp, JsonSerializer.Serialize(settings, JsonOptions));
+        File.Move(temp, SettingsPath, true);
     }
-    private static Dictionary<string, SessionEntry> ReadSessions()
+
+    public bool GetRememberLogin(string server)
     {
-        try { return JsonSerializer.Deserialize<Dictionary<string, SessionEntry>>(File.ReadAllText(TempPath)) ?? new(); }
-        catch (IOException) { return new(); }
-        catch (JsonException) { return new(); }
+        return ReadSettings().TryGetValue(server, out var entry) && entry.RememberLogin;
     }
-    private static void SaveSession(string server, string username, string token)
+
+    public void SetRememberLogin(string server, bool remember)
     {
-        var sessions = ReadSessions();
-        sessions[server] = new SessionEntry { username = username, sessionToken = token };
-        Directory.CreateDirectory(Path.GetDirectoryName(TempPath)!);
-        File.WriteAllText(TempPath, JsonSerializer.Serialize(sessions, JsonOptions));
+        if (string.IsNullOrWhiteSpace(server)) return;
+        var settings = ReadSettings();
+        if (!settings.TryGetValue(server, out var entry))
+            settings[server] = entry = new SavedLogin();
+        entry.RememberLogin = remember;
+        if (!remember) entry.Token = "";
+        WriteSettings(settings);
     }
-    private sealed record CachedLogin(string Username, string Password, string Token);
-    private readonly Dictionary<string, CachedLogin> _logins = new(StringComparer.OrdinalIgnoreCase);
 
     public async Task<bool> TryAutoLoginAsync(CancellationToken ct = default)
     {
         var server = state.SelectedServer?.IpAddress;
         if (string.IsNullOrWhiteSpace(server)) return false;
-        if (!_logins.TryGetValue(server, out var cached))
-        {
-            if (!ReadSessions().TryGetValue(server, out var saved)) return false;
-            cached = new CachedLogin(saved.username, "", saved.sessionToken);
-        }
+        if (!ReadSettings().TryGetValue(server, out var saved) ||
+            !saved.RememberLogin || string.IsNullOrWhiteSpace(saved.Token)) return false;
         try
         {
             var session = await http.GameServerPut<LauncherAccountResponse>(Urls.AccountSession,
-                new LauncherAccountRequest { Token = cached.Token }, ct);
-            if (session?.Response == true)
+                new LauncherAccountRequest { Token = saved.Token }, ct);
+            if (session?.Response != true) return false;
+            state.LauncherToken = session.Token ?? saved.Token;
+            state.LauncherUsername = session.Username ?? saved.Username;
+            state.LauncherEditionAllowed = session.EditionAllowed;
+            if (!await RefreshProfilesAsync(ct)) return false;
+            if (!string.IsNullOrWhiteSpace(session.Token) && session.Token != saved.Token)
             {
-                state.LauncherToken = session.Token ?? cached.Token;
-                state.LauncherUsername = session.Username ?? cached.Username;
-                state.LauncherEditionAllowed = session.EditionAllowed;
-                if (await RefreshProfilesAsync(ct)) return true;
+                saved.Token = session.Token;
+                var settings = ReadSettings();
+                settings[server] = saved;
+                WriteSettings(settings);
             }
+            return true;
         }
-        catch (HttpRequestException) { }
-        return !string.IsNullOrEmpty(cached.Password) && await LoginAsync(cached.Username, cached.Password, ct) && await RefreshProfilesAsync(ct);
+        catch (HttpRequestException) { return false; }
     }
 
     public async Task<bool> RegisterAsync(string username, string password, CancellationToken ct = default)
@@ -93,18 +107,26 @@ public sealed class LauncherAccountHelper(HttpHelper http, StateHelper state)
         return result?.Response == true;
     }
 
-    public async Task<bool> LoginAsync(string username, string password, CancellationToken ct = default)
+    public async Task<bool> LoginAsync(string username, string password, bool rememberLogin = false, CancellationToken ct = default)
     {
         var result = await http.GameServerPut<LauncherAccountResponse>(Urls.AccountLogin,
             new LauncherAccountRequest { Username = username, Password = password }, ct);
         if (result?.Response != true || string.IsNullOrWhiteSpace(result.Token)) return false;
         state.LauncherToken = result.Token;
-        state.LauncherUsername = result.Username;
+        state.LauncherUsername = result.Username ?? username;
         state.LauncherEditionAllowed = result.EditionAllowed;
-        if (!string.IsNullOrWhiteSpace(state.SelectedServer?.IpAddress))
-            _logins[state.SelectedServer.IpAddress] = new CachedLogin(username, password, result.Token);
-        if (!string.IsNullOrWhiteSpace(state.SelectedServer?.IpAddress))
-            SaveSession(state.SelectedServer.IpAddress, result.Username ?? username, result.Token);
+        var server = state.SelectedServer?.IpAddress;
+        if (!string.IsNullOrWhiteSpace(server))
+        {
+            var settings = ReadSettings();
+            settings[server] = new SavedLogin
+            {
+                RememberLogin = rememberLogin,
+                Username = result.Username ?? username,
+                Token = rememberLogin ? result.Token : ""
+            };
+            WriteSettings(settings);
+        }
         return true;
     }
 
@@ -120,18 +142,13 @@ public sealed class LauncherAccountHelper(HttpHelper http, StateHelper state)
 
     public async Task LogoutAsync(CancellationToken ct = default)
     {
-        if (!string.IsNullOrWhiteSpace(state.SelectedServer?.IpAddress))
-            _logins.Remove(state.SelectedServer.IpAddress);
         var token = state.LauncherToken;
         state.LauncherToken = null;
         state.LauncherUsername = null;
         state.LauncherEditionAllowed = null;
-        if (!string.IsNullOrWhiteSpace(state.SelectedServer?.IpAddress))
-        {
-            var sessions = ReadSessions();
-            sessions.Remove(state.SelectedServer.IpAddress);
-            File.WriteAllText(TempPath, JsonSerializer.Serialize(sessions, JsonOptions));
-        }
+        var server = state.SelectedServer?.IpAddress;
+        if (!string.IsNullOrWhiteSpace(server))
+            SetRememberLogin(server, false);
         if (!string.IsNullOrWhiteSpace(token))
             await http.GameServerPut<LauncherAccountResponse>(Urls.AccountLogout,
                 new LauncherAccountRequest { Token = token }, ct);
