@@ -6,6 +6,8 @@
 @inject LocaleHelper LocaleHelper
 @inject WindowsClipboard WindowsClipboard
 @inject ISnackbar Snackbar
+@inject GameHelper GameHelper
+@inject SessionHelper SessionHelper
 
 <MudItem sm="4">
     <MudPaper Elevation="2" Class="@CardClassNames()" @onclick="RunLoginTask">
@@ -138,21 +140,25 @@
             return;
         }
 
-        var dialogParams = new DialogParameters
+        if (!GameHelper.RequiresPasswordAuthentication())
         {
+            if (await SessionHelper.LoginToProfileAsync(MiniProfile))
             {
-                "MiniProfile", MiniProfile
+                NavigationManager.NavigateTo("/ServerPageWrapper/false");
             }
-        };
+            else
+            {
+                Snackbar.Add(LocaleHelper.Get("profile_login_task_fail"), Severity.Error);
+            }
+            return;
+        }
 
+        var dialogParams = new DialogParameters { { "MiniProfile", MiniProfile } };
         var dialog = await DialogService.ShowAsync<ProfileLoginDialog>("ProfileLoginDialog", dialogParams, ConfigHelper.DialogOptions);
         var result = await dialog.Result;
-
-        if (result?.Canceled is false)
+        if (result?.Canceled is false && result.Data is MiniProfile authenticatedProfile)
         {
-            StateHelper.SetSelectedProfile(MiniProfile);
-
-            Logger.LogDebug("Navigating to /ServerPageWrapper/false");
+            StateHelper.SetSelectedProfile(authenticatedProfile);
             NavigationManager.NavigateTo("/ServerPageWrapper/false");
         }
     }

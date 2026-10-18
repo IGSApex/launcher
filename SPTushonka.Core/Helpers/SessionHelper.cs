@@ -10,6 +10,7 @@ public enum ConnectStep
 {
     None,
     Ping,
+    Authentication,
     Profiles,
     Types,
     ModPages,
@@ -55,6 +56,7 @@ public class SessionHelper(ILogger<SessionHelper> logger, HttpHelper httpHelper,
     {
         stateHelper.SetSelectedServer(server);
         stateHelper.ModPages = [];
+        stateHelper.ServerRequiresPassword = false;
 
         var step = ConnectStep.Ping;
         try
@@ -70,13 +72,45 @@ public class SessionHelper(ILogger<SessionHelper> logger, HttpHelper httpHelper,
                 }
             }
 
+            step = ConnectStep.Authentication;
+            using (var authCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken))
+            {
+                authCts.CancelAfter(_requestTimeout);
+                // Older/local SPT servers do not implement this optional endpoint.
+                // An absent or unsupported endpoint means standard profile login.
+                try
+                {
+                    var auth = await httpHelper.GameServerGet<SPTPasswordRequiredResponse>(
+                        Urls.PasswordRequired, authCts.Token);
+                    stateHelper.ServerRequiresPassword = auth?.Response == true;
+                }
+                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+                {
+                    throw;
+                }
+                catch (Exception ex)
+                {
+                    logger.LogInformation(ex, "Launcher account policy endpoint unavailable; using standard profiles");
+                    stateHelper.ServerRequiresPassword = false;
+                }
+            }
+
             step = ConnectStep.Profiles;
             progress?.Report(ConnectStep.Profiles);
             using (var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken))
             {
                 cts.CancelAfter(_requestTimeout);
-                var profiles = await httpHelper.GameServerGet<SPTProfilesResponse>(Urls.Profiles, cts.Token);
-                stateHelper.ProfileList = profiles?.Response!;
+                if (stateHelper.ServerRequiresPassword)
+                {
+                    // Account-scoped profiles are fetched after authentication.
+                    stateHelper.ProfileList = [];
+                }
+                else
+                {
+                    var profiles = await httpHelper.GameServerGet<SPTProfilesResponse>(Urls.Profiles, cts.Token);
+                    if (profiles is null) return ConnectResult.Fail(ConnectStep.Profiles);
+                    stateHelper.ProfileList = profiles.Response;
+                }
             }
 
             step = ConnectStep.Types;
@@ -117,14 +151,14 @@ public class SessionHelper(ILogger<SessionHelper> logger, HttpHelper httpHelper,
     }
 
     /// <summary>Logs into an existing profile by username and, on success, sets it as the selected profile.</summary>
-    public async Task<bool> LoginToProfileAsync(MiniProfile profile, CancellationToken cancellationToken = default)
+    public async Task<bool> LoginToProfileAsync(MiniProfile profile, string password = "", CancellationToken cancellationToken = default)
     {
         try
         {
             using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             cts.CancelAfter(_requestTimeout);
 
-            var request = new SPTLoginRequest { Username = profile.Username };
+            var request = new SPTLoginRequest { Username = profile.Username, Password = password, LauncherToken = stateHelper.LauncherToken };
             var response = await httpHelper.GameServerPut<SPTLoginResponse>(Urls.Login, request, cts.Token);
             if (response?.Response != true)
             {
@@ -142,14 +176,14 @@ public class SessionHelper(ILogger<SessionHelper> logger, HttpHelper httpHelper,
     }
 
     /// <summary>Authenticates by username, fetches the resulting profile, and sets it as the selected profile.</summary>
-    public async Task<MiniProfile?> LoginWithDetailsAsync(string username, CancellationToken cancellationToken = default)
+    public async Task<MiniProfile?> LoginWithDetailsAsync(string username, string password, CancellationToken cancellationToken = default)
     {
         try
         {
             using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             cts.CancelAfter(_requestTimeout);
 
-            var request = new SPTLoginRequest { Username = username };
+            var request = new SPTLoginRequest { Username = username, Password = password, LauncherToken = stateHelper.LauncherToken };
             var login = await httpHelper.GameServerPut<SPTLoginResponse>(Urls.Login, request, cts.Token);
             if (login?.Response != true)
             {

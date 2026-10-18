@@ -105,23 +105,27 @@
             return;
         }
 
-        // The saved profile must still exist and be loadable.
+        // Launcher-account servers must authenticate before their profile list is available.
+        if (StateHelper.ServerRequiresPassword)
+        {
+            StopConnecting();
+            StateHelper.SetAllowServerPage(true);
+            NavigationManager.NavigateTo("/Profiles");
+            return;
+        }
+
+        // Normal/local SPT retains the existing direct profile auto-login.
         var profile = StateHelper.ProfileList.FirstOrDefault(p => p.ProfileId == preferred.ProfileId);
         if (profile is null || profile.InvalidOrUnloadableProfile)
         {
-            // Only clear if it's missing. The user *may* be able to fix a broken one?
             if (profile is null)
-            {
                 ConfigHelper.ClearPreferredProfile();
-            }
-
             StateHelper.LogoutAndDispose();
             StopConnecting();
             Snackbar.Add(LocaleHelper.Get("auto_connect_profile_missing"), Severity.Warning);
             return;
         }
 
-        // Log into the profile.
         if (!await SessionHelper.LoginToProfileAsync(profile))
         {
             StateHelper.LogoutAndDispose();
@@ -130,6 +134,7 @@
             return;
         }
 
+        StopConnecting();
         StateHelper.SetAllowServerPage(true);
         NavigationManager.NavigateTo("/Profile");
     }

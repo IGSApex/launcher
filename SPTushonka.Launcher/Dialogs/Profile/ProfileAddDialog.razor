@@ -2,6 +2,8 @@
 @inject StateHelper StateHelper
 @inject HttpHelper HttpHelper
 @inject LocaleHelper LocaleHelper
+@inject GameHelper GameHelper
+@inject LauncherAccountHelper Accounts
 
 <MudDialog Class="form-dialog mud-background-gray border-2 border-solid mud-border-lines-default">
     <DialogContent>
@@ -61,7 +63,7 @@
     private List<string> ServerEditions { get; set; } = [];
     private CancellationTokenSource Token { get; set; } = new();
     private bool UserCancel { get; set; }
-    private bool CanSubmit => !string.IsNullOrWhiteSpace(Request.Edition) && !string.IsNullOrWhiteSpace(Request.Username);
+    private bool CanSubmit => !string.IsNullOrWhiteSpace(Request.Edition) && !string.IsNullOrWhiteSpace(Request.Username) && (!StateHelper.ServerRequiresPassword || !string.IsNullOrWhiteSpace(StateHelper.LauncherToken));
 
     private string EditionDescription(string edition) => StateHelper.ProfileTypes.GetValueOrDefault(edition, "");
 
@@ -78,7 +80,10 @@
 
     protected override void OnInitialized()
     {
-        ServerEditions = StateHelper.ProfileTypes.Keys.ToList();
+        ServerEditions = StateHelper.ServerRequiresPassword
+            ? StateHelper.ProfileTypes.Keys.Where(e => string.Equals(e, StateHelper.LauncherEditionAllowed, StringComparison.OrdinalIgnoreCase)).ToList()
+            : StateHelper.ProfileTypes.Keys.ToList();
+        Request.Edition = ServerEditions.FirstOrDefault() ?? "";
         base.OnInitialized();
     }
 
@@ -122,6 +127,7 @@
             StateHasChanged();
             await Task.Delay(20);
 
+            Request.LauncherToken = StateHelper.LauncherToken;
             var returnResult = await HttpHelper.GameServerPut<SPTRegisterResponse>(Urls.Register, Request, Token.Token);
 
             if (returnResult is null)
@@ -130,8 +136,20 @@
                 return false;
             }
 
-            StateHelper.ProfileList = returnResult.Profiles;
             var result = returnResult.Response;
+            if (result)
+            {
+                // Registration succeeded; a follow-up refresh must not report creation failure.
+                try
+                {
+                    if (StateHelper.ServerRequiresPassword && !await Accounts.RefreshProfilesAsync(Token.Token))
+                        Snackbar.Add("Profile created, but the list could not be refreshed. Reconnect to reload it.", Severity.Warning);
+                }
+                catch (Exception)
+                {
+                    Snackbar.Add("Profile created, but the list could not be refreshed. Reconnect to reload it.", Severity.Warning);
+                }
+            }
 
             if (!result)
             {

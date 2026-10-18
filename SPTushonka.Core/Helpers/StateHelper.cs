@@ -9,6 +9,10 @@ public class StateHelper(ILogger<StateHelper> logger)
     private const int ModPagesPanelCloseDelayMs = 300;
     private long _modPagesPanelHoverVersion;
 
+    public string? LauncherToken { get; set; }
+    public string? LauncherUsername { get; set; }
+    public string? LauncherEditionAllowed { get; set; }
+    public bool ServerRequiresPassword { get; set; }
     public List<MiniProfile> ProfileList = [];
     public Dictionary<string, string> ProfileTypes = new();
     public List<ModPage> ModPages = [];
@@ -26,6 +30,10 @@ public class StateHelper(ILogger<StateHelper> logger)
     public void LogoutAndDispose()
     {
         logger.LogInformation("Logged out of server {SelectedServerIpAddress} and disposed", SelectedServer?.IpAddress ?? "Unknown");
+        ServerRequiresPassword = false;
+        LauncherToken = null;
+        LauncherUsername = null;
+        LauncherEditionAllowed = null;
         ProfileTypes = new Dictionary<string, string>();
         ProfileList = [];
         ModPages = [];
@@ -36,6 +44,13 @@ public class StateHelper(ILogger<StateHelper> logger)
 
     public void SetSelectedServer(Server? server)
     {
+        // Keep the fetched authentication policy when the same server is selected again.
+        // Reset only when switching servers or disconnecting.
+        if (!string.Equals(SelectedServer?.IpAddress, server?.IpAddress, StringComparison.OrdinalIgnoreCase))
+        {
+            ServerRequiresPassword = false;
+        }
+
         SelectedServer = server;
     }
 

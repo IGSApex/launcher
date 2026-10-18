@@ -1,115 +1,137 @@
 @inject ISnackbar Snackbar
 @inject StateHelper StateHelper
 @inject SessionHelper SessionHelper
+@inject LauncherAccountHelper Accounts
 @inject LocaleHelper LocaleHelper
 
 <MudDialog Class="mud-background-gray border-2 border-solid mud-border-lines-default">
     <DialogContent>
-        <MudContainer Class="py-4">
-            <MudContainer Class="d-flex flex-column align-center gap-4">
-                <MudProgressCircular Color="Color.Primary" Indeterminate="true" Size="Size.Large"/>
-                <MudText>@_taskText</MudText>
-            </MudContainer>
-            <MudContainer Class="mt-3 d-flex justify-end pa-0 gap-2">
-                <MudButton Class="mud-button-border-copy border-2 border-solid mud-button-inner-text-copy ml-auto" Variant="Variant.Filled" Color="Color.Error" OnClick="UserCancelled">@(LocaleHelper.Get("server_login_cancel"))</MudButton>
-            </MudContainer>
+        <MudContainer Class="py-4 d-flex flex-column gap-3">
+            <MudText Typo="Typo.h6">@Server.Name — Launcher Account</MudText>
+            @if (_busy)
+            {
+                <MudProgressCircular Indeterminate="true" Color="Color.Primary"/>
+                <MudText>@_status</MudText>
+            }
+            else if (!_connected)
+            {
+                <MudText Color="Color.Error">Unable to connect to this server. Please check the server and try again.</MudText>
+                <MudButton OnClick="Cancel">Close</MudButton>
+            }
+            else if (StateHelper.ServerRequiresPassword)
+            {
+                <MudTextField @bind-Value="_username" Label="Username" Variant="Variant.Outlined" Required="true"/>
+                <MudTextField @bind-Value="_password" Label="Password" InputType="InputType.Password" Variant="Variant.Outlined" Required="true"/>
+                @if (_register)
+                {
+                    <MudTextField @bind-Value="_confirm" Label="Confirm password" InputType="InputType.Password" Variant="Variant.Outlined" Required="true"/>
+                }
+                <div class="d-flex gap-2">
+                    <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="Submit" Disabled="@(!CanSubmit)">@(_register ? "Register" : "Login")</MudButton>
+                    <MudButton OnClick="ToggleMode">@(_register ? "Back to login" : "Register")</MudButton>
+                    <MudButton Disabled="true">Forgot Password (Coming Soon)</MudButton>
+                    <MudButton OnClick="Cancel">Cancel</MudButton>
+                </div>
+            }
         </MudContainer>
     </DialogContent>
 </MudDialog>
 
 @code {
-    private string _taskText = "";
-
-    [Parameter]
-    public Server Server { get; set; } = default!;
-
-    [CascadingParameter]
-    private IMudDialogInstance MudDialog { get; set; } = default!;
-
-    private CancellationTokenSource Token { get; } = new();
-    private bool UserCancel { get; set; }
+    [Parameter] public Server Server { get; set; } = default!;
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+    private string _username = "";
+    private string _password = "";
+    private string _confirm = "";
+    private string _status = "";
+    private bool _busy;
+    private bool _connected;
 
     protected override async Task OnInitializedAsync()
     {
-        await base.OnInitializedAsync();
-        await StartLoginTasks();
-    }
-
-    private async Task StartLoginTasks()
-    {
-        await Task.Delay(250); // Prevents dialogue flash.
-
-        var progress = new Progress<ConnectStep>(step =>
+        _busy = true;
+        _status = "Checking server settings...";
+        try
         {
-            _taskText = StepText(step);
-            InvokeAsync(StateHasChanged);
-        });
-
-        var result = await SessionHelper.ConnectToServerAsync(Server, progress, Token.Token);
-
-        if (result.Success)
-        {
-            Submit();
+            var result = await SessionHelper.ConnectToServerAsync(Server);
+            _connected = result.Success;
+            if (!_connected) Snackbar.Add("Server connection failed: " + result.FailedStep, Severity.Error);
+            else if (!StateHelper.ServerRequiresPassword) CompleteConnection();
+            else
+            {
+                _status = "Restoring launcher account session...";
+                try
+                {
+                    if (await Accounts.TryAutoLoginAsync())
+                    {
+                        CompleteConnection();
+                        return;
+                    }
+                }
+                catch (Exception)
+                {
+                    // Failed automatic login falls back to the normal login form.
+                }
+            }
         }
-        else
-        {
-            AbortOrFail(MapFailure(result));
-        }
+        finally { _busy = false; }
     }
-
-    private string StepText(ConnectStep step)
+    private void CompleteConnection()
     {
-        return step switch
-        {
-            ConnectStep.Ping => LocaleHelper.Get("server_login_task_1"),
-            ConnectStep.Profiles => LocaleHelper.Get("server_login_task_2"),
-            ConnectStep.Types => LocaleHelper.Get("server_login_task_3"),
-            ConnectStep.ModPages => LocaleHelper.Get("server_login_task_4"),
-            _ => ""
-        };
-    }
-
-    private string MapFailure(ConnectResult result)
-    {
-        if (result.TimedOut)
-        {
-            return LocaleHelper.Get("request_timed_out");
-        }
-
-        return result.FailedStep switch
-        {
-            ConnectStep.Profiles => LocaleHelper.Get("server_login_task_fail_1"),
-            ConnectStep.Types => LocaleHelper.Get("server_login_task_fail_2"),
-            ConnectStep.ModPages => LocaleHelper.Get("server_login_task_fail_3"),
-            _ => LocaleHelper.Get("server_login_default")
-        };
-    }
-
-    private void AbortOrFail(string? message = null)
-    {
-        message ??= LocaleHelper.Get("server_login_default");
-
-        if (!UserCancel)
-        {
-            Snackbar.Add(message, Severity.Error);
-        }
-
-        StateHelper.LogoutAndDispose();
-        Token.Cancel();
-        MudDialog.Cancel();
-    }
-
-    private void Submit()
-    {
-        MudDialog.Close(DialogResult.Ok(Server));
         StateHelper.SetAllowServerPage(true);
-        Snackbar.Add(LocaleHelper.Get("server_login_task_success"), Severity.Success);
+        MudDialog.Close(DialogResult.Ok(Server));
     }
 
-    private void UserCancelled()
+    private bool _register;
+    private bool CanSubmit => !string.IsNullOrWhiteSpace(_username) && _password.Length >= 8 && (!_register || _confirm == _password);
+
+    private void ToggleMode() { _register = !_register; _password = ""; _confirm = ""; }
+    private void Cancel() => MudDialog.Cancel();
+
+    private async Task Submit()
     {
-        UserCancel = true;
-        Token.Cancel();
-        MudDialog.Cancel();
+        if (!CanSubmit || _busy) return;
+        _busy = true;
+        try
+        {
+            _status = "Connecting to server...";
+            if (!_connected) return;
+            if (!StateHelper.ServerRequiresPassword)
+            {
+                CompleteConnection();
+                return;
+            }
+            if (_register)
+            {
+                _status = "Creating launcher account...";
+                if (!await Accounts.RegisterAsync(_username, _password))
+                {
+                    Snackbar.Add("Launcher account registration failed.", Severity.Error);
+                    return;
+                }
+            }
+            _status = "Authenticating launcher account...";
+            if (!await Accounts.LoginAsync(_username, _password))
+            {
+                Snackbar.Add("Invalid launcher account credentials.", Severity.Error);
+                return;
+            }
+            _status = "Loading owned profiles...";
+            if (!await Accounts.RefreshProfilesAsync())
+            {
+                Snackbar.Add("Unable to load account profiles.", Severity.Error);
+                await Accounts.LogoutAsync();
+                return;
+            }
+            CompleteConnection();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Launcher account request failed: {ex.GetBaseException().Message}", Severity.Error);
+        }
+        finally
+        {
+            _busy = false;
+        }
     }
 }
