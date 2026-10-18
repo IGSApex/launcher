@@ -21,10 +21,7 @@
         <MudButton Color="Color.Primary" StartIcon="@Icons.Material.Filled.Sync" Variant="Variant.Filled"
                    OnClick="UpdateMods" Disabled="@(_loading || _serverMessage != null || _serverMods.Count == 0)">UPDATE MODS TO MATCH SERVER</MudButton>
     </MudContainer>
-    <MudText Typo="Typo.caption" Class="mud-text-secondary mt-2">
-        Updating is unavailable until the server provides a verified client-mod manifest and safe download endpoints.
-        No installed mods will be deleted or overwritten.
-    </MudText>
+
     <MudGrid Spacing="3">
         <MudItem xs="12" md="6">
             <MudPaper Class="pa-4 border-2 border-solid mud-border-lines-default card-container" Elevation="2" Style="min-height:360px">
@@ -38,7 +35,7 @@
                 else if (_serverMods.Count == 0)
                 {
                     <MudAlert Severity="Severity.Info" Variant="Variant.Outlined">
-                        @(_serverMessage ?? "The server has not published a client mod manifest.")
+                        @(_serverMessage ?? "No client mods are published by this server.")
                     </MudAlert>
                 }
                 else
