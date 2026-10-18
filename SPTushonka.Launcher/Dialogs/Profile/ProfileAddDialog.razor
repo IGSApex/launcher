@@ -142,7 +142,7 @@
                 // Registration succeeded; a follow-up refresh must not report creation failure.
                 try
                 {
-                    if (!await Accounts.RefreshProfilesAsync(Token.Token))
+                    if (StateHelper.ServerRequiresPassword && !await Accounts.RefreshProfilesAsync(Token.Token))
                         Snackbar.Add("Profile created, but the list could not be refreshed. Reconnect to reload it.", Severity.Warning);
                 }
                 catch (Exception)
