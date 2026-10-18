@@ -1,6 +1,7 @@
 @page "/ModManager"
 @using System.IO
 @using System.Linq
+@using System.Security.Cryptography
 @inject NavigationManager NavigationManager
 @inject StateHelper StateHelper
 @inject ConfigHelper ConfigHelper
@@ -14,6 +15,16 @@
                    Variant="Variant.Filled" Size="Size.Medium" OnClick="GoBack">BACK</MudButton>
     </MudContainer>
 
+    <MudContainer Class="pa-0 d-flex justify-end gap-2 pb-4">
+        <MudButton Color="Color.Dark" StartIcon="@Icons.Material.Filled.Refresh" Variant="Variant.Filled"
+                   OnClick="Reload" Disabled="_loading">REFRESH</MudButton>
+        <MudButton Color="Color.Primary" StartIcon="@Icons.Material.Filled.Sync" Variant="Variant.Filled"
+                   OnClick="UpdateMods" Disabled="@(_loading || _serverMessage != null || _serverMods.Count == 0)">UPDATE MODS TO MATCH SERVER</MudButton>
+    </MudContainer>
+    <MudText Typo="Typo.caption" Class="mud-text-secondary mt-2">
+        Updating is unavailable until the server provides a verified client-mod manifest and safe download endpoints.
+        No installed mods will be deleted or overwritten.
+    </MudText>
     <MudGrid Spacing="3">
         <MudItem xs="12" md="6">
             <MudPaper Class="pa-4 border-2 border-solid mud-border-lines-default card-container" Elevation="2" Style="min-height:360px">
@@ -63,16 +74,7 @@
             </MudPaper>
         </MudItem>
     </MudGrid>
-    <MudContainer Class="pa-0 d-flex justify-end gap-2 pt-4">
-        <MudButton Color="Color.Dark" StartIcon="@Icons.Material.Filled.Refresh" Variant="Variant.Filled"
-                   OnClick="Reload" Disabled="_loading">REFRESH</MudButton>
-        <MudButton Color="Color.Primary" StartIcon="@Icons.Material.Filled.Sync" Variant="Variant.Filled"
-                   Disabled="true">UPDATE MODS TO MATCH SERVER</MudButton>
-    </MudContainer>
-    <MudText Typo="Typo.caption" Class="mud-text-secondary mt-2">
-        Updating is unavailable until the server provides a verified client-mod manifest and safe download endpoints.
-        No installed mods will be deleted or overwritten.
-    </MudText>
+
 </MudContainer>
 
 @code {
@@ -80,6 +82,9 @@
     {
         public string Name { get; set; } = "";
         public string Version { get; set; } = "";
+        public string FileName { get; set; } = "";
+        public long Size { get; set; }
+        public string Sha256 { get; set; } = "";
     }
 
     private readonly List<string> _localMods = [];
@@ -98,6 +103,47 @@
     }
 
     private void GoBack() => NavigationManager.NavigateTo("/Profiles");
+
+    private async Task UpdateMods()
+    {
+        if (_loading || _serverMessage != null || _serverMods.Count == 0) return;
+        _loading = true;
+        try
+        {
+            var folder = Path.GetFullPath(Path.Combine(ConfigHelper.GetGamePath(), "BepInEx", "plugins"));
+            Directory.CreateDirectory(folder);
+            foreach (var mod in _serverMods)
+            {
+                if (string.IsNullOrWhiteSpace(mod.FileName) || mod.FileName != Path.GetFileName(mod.FileName) ||
+                    !mod.FileName.EndsWith(".dll", StringComparison.OrdinalIgnoreCase) ||
+                    mod.Size <= 0 || mod.Sha256.Length != 64 || !mod.Sha256.All(Uri.IsHexDigit))
+                    throw new InvalidDataException("Invalid server mod entry: " + mod.Name);
+                var destination = Path.Combine(folder, mod.FileName);
+                if (File.Exists(destination) && await HashMatches(destination, mod.Sha256)) continue;
+                var staging = destination + ".download";
+                try
+                {
+                    await HttpHelper.DownloadFileAsync("/files/client-mod/" + Uri.EscapeDataString(mod.FileName),
+                        staging, null, CancellationToken.None);
+                    if (new FileInfo(staging).Length != mod.Size || !await HashMatches(staging, mod.Sha256))
+                        throw new InvalidDataException("Integrity check failed: " + mod.FileName);
+                    if (File.Exists(destination)) File.Copy(destination, destination + ".backup", true);
+                    File.Move(staging, destination, true);
+                }
+                finally { if (File.Exists(staging)) File.Delete(staging); }
+            }
+            Snackbar.Add("Client mods updated. Restart the game to load changes.", Severity.Success);
+        }
+        catch (Exception ex) { Snackbar.Add("Mod update failed: " + ex.Message, Severity.Error); }
+        finally { _loading = false; await Reload(); }
+    }
+
+    private static async Task<bool> HashMatches(string file, string expected)
+    {
+        await using var stream = File.OpenRead(file);
+        var hash = Convert.ToHexString(await SHA256.HashDataAsync(stream));
+        return hash.Equals(expected, StringComparison.OrdinalIgnoreCase);
+    }
 
     private async Task Reload()
     {
