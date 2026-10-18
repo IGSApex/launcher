@@ -2,6 +2,7 @@
 
 @inject IDialogService DialogService
 @inject StateHelper StateHelper
+@inject LauncherAccountHelper Accounts
 @inject ConfigHelper ConfigHelper
 @inject NavigationManager NavigationManager
 @inject LocaleHelper LocaleHelper
@@ -31,8 +32,8 @@
                     <MudPaper Elevation="2" Class="pa-4 border-2 border-solid mud-border-lines-default card-container">
                         <MudContainer Class="d-flex flex-column align-center gap-2 py-12">
                             <MudIcon Icon="@Icons.Material.Filled.PersonSearch" Style="font-size: 4rem;" Class="mud-text-secondary"/>
-                            <MudText Typo="Typo.h6" Align="Align.Center">@(LocaleHelper.Get("profiles_empty_title"))</MudText>
-                            <MudText Align="Align.Center" Class="mud-text-secondary">@(LocaleHelper.Get("profiles_empty_subtitle"))</MudText>
+                            <MudText Typo="Typo.h6" Align="Align.Center">@((StateHelper.ServerRequiresPassword ? "You do not have any profiles to choose from." : LocaleHelper.Get("profiles_empty_title")))</MudText>
+                            <MudText Align="Align.Center" Class="mud-text-secondary">@((StateHelper.ServerRequiresPassword ? "Please create a new profile." : LocaleHelper.Get("profiles_empty_subtitle")))</MudText>
                         </MudContainer>
                     </MudPaper>
                 </MudItem>
@@ -76,14 +77,7 @@
 
     private async Task RunLoginTaskWithDetails()
     {
-        var dialogParams = new DialogParameters
-        {
-            {
-                "MiniProfile", PartialProfile
-            }
-        };
-
-        var dialog = await DialogService.ShowAsync<ProfileLoginDialog>("ProfileLoginDialog", dialogParams, ConfigHelper.DialogOptions);
+        var dialog = await DialogService.ShowAsync<ProfileLoginDialog>("ProfileLoginDialog", ConfigHelper.DialogOptions);
         var result = await dialog.Result;
 
         if (result?.Canceled is false && result.Data is MiniProfile profile)
@@ -94,13 +88,14 @@
         }
     }
 
-    private Task ReturnToServers()
+    private void ReturnToServers()
     {
-        StateHelper.SetSelectedServer(null);
+        // Disconnect from the selected game server, not the launcher account.
+        // Keep the authenticated account session for automatic server-card login.
+        StateHelper.LogoutAndDispose();
         StateHelper.SetAllowServerPage(false);
         NavigationManager.NavigateTo("/ServerPageWrapper/false");
 
-        return Task.CompletedTask;
     }
 
 }
