@@ -24,7 +24,7 @@ public sealed class LauncherAccountResponse
 /// <summary>Launcher-lifetime session; local file is a convenience marker, never authentication authority.</summary>
 public sealed class LauncherAccountHelper(HttpHelper http, StateHelper state)
 {
-    private static readonly string TempPath = Path.Combine(AppContext.BaseDirectory, "user", "Launcher", "launcherTemp.json");
+    private static readonly string TempPath = Path.Combine(AppContext.BaseDirectory, "user", "profiles", "launcher", "launcherTemp.json");
 
     public static void DeleteTemporarySessionMarker()
     {
