@@ -49,7 +49,7 @@ public class HttpHelper
 
         var task = await _httpClient.GetAsync(BuildGameUrl(url), token);
         var json = SimpleZlib.Decompress(await task.Content.ReadAsByteArrayAsync(token));
-        return JsonSerializer.Deserialize<T>(json);
+        return JsonSerializer.Deserialize<T>(json, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
     }
 
     /// <summary>
