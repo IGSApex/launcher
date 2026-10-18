@@ -1,0 +1,137 @@
+@page "/ModManager"
+@using System.IO
+@using System.Linq
+@inject NavigationManager NavigationManager
+@inject StateHelper StateHelper
+@inject ConfigHelper ConfigHelper
+@inject HttpHelper HttpHelper
+@inject ISnackbar Snackbar
+
+<MudContainer Class="px-4 my-2" MaxWidth="MaxWidth.Large">
+    <MudContainer Class="pa-0 d-flex justify-start gap-2 pb-4">
+        <MudButton Class="mud-button-border-copy border-2 border-solid mud-button-inner-text-copy"
+                   Color="Color.Dark" StartIcon="@Icons.Material.Filled.ArrowBack" IconColor="Color.Error"
+                   Variant="Variant.Filled" Size="Size.Medium" OnClick="GoBack">BACK</MudButton>
+    </MudContainer>
+
+    <MudGrid Spacing="3">
+        <MudItem xs="12" md="6">
+            <MudPaper Class="pa-4 border-2 border-solid mud-border-lines-default card-container" Elevation="2" Style="min-height:360px">
+                <MudText Typo="Typo.h6">Server Required Client Mods</MudText>
+                <MudText Typo="Typo.caption" Class="mud-text-secondary">Mods required by the connected server</MudText>
+                <MudDivider Class="my-3"/>
+                @if (_loading)
+                {
+                    <MudProgressCircular Indeterminate="true" Size="Size.Small"/>
+                }
+                else if (_serverMods.Count == 0)
+                {
+                    <MudAlert Severity="Severity.Info" Variant="Variant.Outlined">
+                        @(_serverMessage ?? "The server has not published a client mod manifest.")
+                    </MudAlert>
+                }
+                else
+                {
+                    @foreach (var mod in _serverMods)
+                    {
+                        <MudPaper Class="pa-2 mb-2" Elevation="1">
+                            <MudText>@mod.Name</MudText>
+                            <MudText Typo="Typo.caption">@mod.Version</MudText>
+                        </MudPaper>
+                    }
+                }
+            </MudPaper>
+        </MudItem>
+        <MudItem xs="12" md="6">
+            <MudPaper Class="pa-4 border-2 border-solid mud-border-lines-default card-container" Elevation="2" Style="min-height:360px">
+                <MudText Typo="Typo.h6">Your Client Mods</MudText>
+                <MudText Typo="Typo.caption" Class="mud-text-secondary">BepInEx/plugins in your game installation</MudText>
+                <MudDivider Class="my-3"/>
+                @if (_localMods.Count == 0)
+                {
+                    <MudText Class="mud-text-secondary">No plugin DLLs found.</MudText>
+                }
+                else
+                {
+                    @foreach (var mod in _localMods)
+                    {
+                        <MudPaper Class="pa-2 mb-2" Elevation="1">
+                            <MudText>@mod</MudText>
+                        </MudPaper>
+                    }
+                }
+            </MudPaper>
+        </MudItem>
+    </MudGrid>
+    <MudContainer Class="pa-0 d-flex justify-end gap-2 pt-4">
+        <MudButton Color="Color.Dark" StartIcon="@Icons.Material.Filled.Refresh" Variant="Variant.Filled"
+                   OnClick="Reload" Disabled="_loading">REFRESH</MudButton>
+        <MudButton Color="Color.Primary" StartIcon="@Icons.Material.Filled.Sync" Variant="Variant.Filled"
+                   Disabled="true">UPDATE MODS TO MATCH SERVER</MudButton>
+    </MudContainer>
+    <MudText Typo="Typo.caption" Class="mud-text-secondary mt-2">
+        Updating is unavailable until the server provides a verified client-mod manifest and safe download endpoints.
+        No installed mods will be deleted or overwritten.
+    </MudText>
+</MudContainer>
+
+@code {
+    private sealed class ClientModEntry
+    {
+        public string Name { get; set; } = "";
+        public string Version { get; set; } = "";
+    }
+
+    private readonly List<string> _localMods = [];
+    private List<ClientModEntry> _serverMods = [];
+    private bool _loading;
+    private string? _serverMessage;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (StateHelper.SelectedServer is null)
+        {
+            NavigationManager.NavigateTo("/");
+            return;
+        }
+        await Reload();
+    }
+
+    private void GoBack() => NavigationManager.NavigateTo("/Profiles");
+
+    private async Task Reload()
+    {
+        _loading = true;
+        _localMods.Clear();
+        _serverMods = [];
+        _serverMessage = null;
+        try
+        {
+            var pluginFolder = Path.Combine(ConfigHelper.GetGamePath(), "BepInEx", "plugins");
+            if (Directory.Exists(pluginFolder))
+            {
+                _localMods.AddRange(Directory.EnumerateFiles(pluginFolder, "*.dll", SearchOption.AllDirectories)
+                    .Select(path => Path.GetRelativePath(pluginFolder, path))
+                    .OrderBy(path => path, StringComparer.OrdinalIgnoreCase));
+            }
+            // This endpoint must be implemented server-side before sync can be enabled.
+            try
+            {
+                _serverMods = await HttpHelper.GameServerGet<List<ClientModEntry>>(
+                    "/launcher/v2/client-mods", CancellationToken.None) ?? [];
+            }
+            catch (Exception)
+            {
+                _serverMessage = "Server client-mod manifest is not available yet.";
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add("Unable to scan installed mods: " + ex.Message, Severity.Error);
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+}
