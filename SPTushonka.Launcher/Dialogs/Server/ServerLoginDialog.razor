@@ -26,6 +26,7 @@
                 {
                     <MudTextField @bind-Value="_confirm" Label="Confirm password" InputType="InputType.Password" Variant="Variant.Outlined" Required="true"/>
                 }
+                <MudCheckBox T="bool" @bind-Value="_rememberLogin" Label="Remember Login" Color="Color.Primary" />
                 <div class="d-flex gap-2">
                     <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="Submit" Disabled="@(!CanSubmit)">@(_register ? "Register" : "Login")</MudButton>
                     <MudButton OnClick="ToggleMode">@(_register ? "Back to login" : "Register")</MudButton>
@@ -46,9 +47,11 @@
     private string _status = "";
     private bool _busy;
     private bool _connected;
+    private bool _rememberLogin;
 
     protected override async Task OnInitializedAsync()
     {
+        _rememberLogin = Accounts.GetRememberLogin(Server.IpAddress);
         _busy = true;
         _status = "Checking server settings...";
         try
@@ -111,7 +114,7 @@
                 }
             }
             _status = "Authenticating launcher account...";
-            if (!await Accounts.LoginAsync(_username, _password))
+            if (!await Accounts.LoginAsync(_username, _password, _rememberLogin))
             {
                 Snackbar.Add("Invalid launcher account credentials.", Severity.Error);
                 return;
