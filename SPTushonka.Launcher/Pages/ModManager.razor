@@ -121,26 +121,39 @@
 
     private void GoBack() => NavigationManager.NavigateTo("/Profiles");
 
+    private static bool IsSafeModPath(string relative)
+    {
+        var parts = relative.Replace('\\', '/').Split('/');
+        if (parts.Length < 2 || !(parts[0].Equals("plugins", StringComparison.OrdinalIgnoreCase) ||
+                                  parts[0].Equals("patchers", StringComparison.OrdinalIgnoreCase)) ||
+            parts.Any(x => x is "" or "." or ".." || x.Contains(':') || x.Contains('\\')))
+            return false;
+        var path = string.Join("/", parts);
+        return !path.StartsWith("plugins/spt/", StringComparison.OrdinalIgnoreCase) &&
+               !path.Equals("patchers/spt-prepatch.dll", StringComparison.OrdinalIgnoreCase) &&
+               !path.Equals("patchers/FixPluginTypesSerialization.dll", StringComparison.OrdinalIgnoreCase);
+    }
+
     private async Task UpdateMods()
     {
         if (_loading || _serverMessage != null || _serverMods.Count == 0) return;
         _loading = true;
         try
         {
-            var folder = Path.GetFullPath(Path.Combine(ConfigHelper.GetGamePath(), "BepInEx", "plugins"));
+            var folder = Path.GetFullPath(Path.Combine(ConfigHelper.GetGamePath(), "BepInEx"));
             Directory.CreateDirectory(folder);
             foreach (var mod in _serverMods)
             {
-                if (string.IsNullOrWhiteSpace(mod.FileName) || mod.FileName != Path.GetFileName(mod.FileName) ||
-                    !mod.FileName.EndsWith(".dll", StringComparison.OrdinalIgnoreCase) ||
+                if (string.IsNullOrWhiteSpace(mod.FileName) || !IsSafeModPath(mod.FileName) ||
                     mod.Size <= 0 || mod.Sha256.Length != 64 || !mod.Sha256.All(Uri.IsHexDigit))
                     throw new InvalidDataException("Invalid server mod entry: " + mod.Name);
-                var destination = Path.Combine(folder, mod.FileName);
+                var destination = Path.GetFullPath(Path.Combine(folder, mod.FileName.Replace('/', Path.DirectorySeparatorChar)));
+                Directory.CreateDirectory(Path.GetDirectoryName(destination)!);
                 if (File.Exists(destination) && await HashMatches(destination, mod.Sha256)) continue;
                 var staging = destination + ".download";
                 try
                 {
-                    await HttpHelper.DownloadFileAsync("/files/client-mod/" + Uri.EscapeDataString(mod.FileName),
+                    await HttpHelper.DownloadFileAsync("/files/client-mod/" + string.Join("/", mod.FileName.Split('/').Select(Uri.EscapeDataString)),
                         staging, null, CancellationToken.None);
                     if (new FileInfo(staging).Length != mod.Size || !await HashMatches(staging, mod.Sha256))
                         throw new InvalidDataException("Integrity check failed: " + mod.FileName);
