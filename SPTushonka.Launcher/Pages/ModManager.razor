@@ -87,6 +87,26 @@
         public string Sha256 { get; set; } = "";
     }
 
+    // Standard SPT client modules are part of the base installation, not optional mods.
+    private static readonly HashSet<string> BuiltInPlugins = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "spt-common.dll",
+        "spt-core.dll",
+        "spt-custom.dll",
+        "spt-debugging.dll",
+        "spt-reflection.dll",
+        "spt-singleplayer.dll",
+        "ConfigurationManager.dll"
+    };
+
+    private static bool IsBuiltInPlugin(string relativePath)
+    {
+        var parts = relativePath.Replace('\\', '/').Split('/', StringSplitOptions.RemoveEmptyEntries);
+        return parts.Length >= 2 &&
+               parts[0].Equals("spt", StringComparison.OrdinalIgnoreCase) &&
+               BuiltInPlugins.Contains(parts[^1]);
+    }
+
     private readonly List<string> _localMods = [];
     private List<ClientModEntry> _serverMods = [];
     private bool _loading;
@@ -158,6 +178,7 @@
             {
                 _localMods.AddRange(Directory.EnumerateFiles(pluginFolder, "*.dll", SearchOption.AllDirectories)
                     .Select(path => Path.GetRelativePath(pluginFolder, path))
+                    .Where(path => !IsBuiltInPlugin(path))
                     .OrderBy(path => path, StringComparer.OrdinalIgnoreCase));
             }
             // This endpoint must be implemented server-side before sync can be enabled.
