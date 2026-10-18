@@ -24,6 +24,8 @@ public class GameHelper
 
     public string? ErrorMessage;
 
+    public bool RequiresPasswordAuthentication() => _stateHelper.ServerRequiresPassword;
+
     private List<string> Patches
     {
         get { return Directory.GetDirectories(Paths.PatchPath).ToList(); }
