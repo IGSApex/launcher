@@ -115,7 +115,6 @@ public class Launcher
 
         _logger = App.Services.GetRequiredService<ILogger<Launcher>>();
         ConfigHelper = App.Services.GetRequiredService<ConfigHelper>();
-        LauncherAccountHelper.StartTemporarySession();
         _trayHelper = App.Services.GetRequiredService<TrayHelper>();
 
         CustomizeComponent();
@@ -141,7 +140,6 @@ public class Launcher
         {
             // Runs on the main thread once the message loop exits.
             _trayHelper.Dispose();
-            LauncherAccountHelper.DeleteTemporarySessionMarker();
             _singleInstanceGuard.Dispose();
             DeleteTrayIcon();
         }
