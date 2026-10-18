@@ -2,7 +2,6 @@
 @using System.IO
 @using System.Linq
 @using System.Security.Cryptography
-@using System.Text.Json
 @inject NavigationManager NavigationManager
 @inject StateHelper StateHelper
 @inject ConfigHelper ConfigHelper
@@ -105,7 +104,6 @@
                BuiltInPlugins.Contains(parts[^1]);
     }
 
-    private static readonly JsonSerializerOptions ManifestJsonOptions = new() { PropertyNameCaseInsensitive = true };
     private readonly List<string> _localMods = [];
     private List<ClientModEntry> _serverMods = [];
     private bool _loading;
