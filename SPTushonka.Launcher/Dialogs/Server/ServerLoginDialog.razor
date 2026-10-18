@@ -65,7 +65,7 @@
                 _status = "Restoring launcher account session...";
                 try
                 {
-                    if (await Accounts.TryAutoLoginAsync())
+                    if (await Accounts.TryAutoLoginAsync(Server.IpAddress))
                     {
                         CompleteConnection();
                         return;
