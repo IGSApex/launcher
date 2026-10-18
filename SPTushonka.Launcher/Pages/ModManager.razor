@@ -22,55 +22,63 @@
                    OnClick="UpdateMods" Disabled="@(_loading || _serverMessage != null || _serverMods.Count == 0)">UPDATE MODS TO MATCH SERVER</MudButton>
     </MudContainer>
 
-    <MudGrid Spacing="3">
-        <MudItem xs="12" md="6">
-            <MudPaper Class="pa-4 border-2 border-solid mud-border-lines-default card-container" Elevation="2" Style="min-height:360px">
+    <MudPaper Class="pa-3 border-2 border-solid mud-border-lines-default card-container" Elevation="2">
+        <MudGrid Spacing="2">
+            <MudItem xs="6">
                 <MudText Typo="Typo.h6">Server Required Client Mods</MudText>
-                <MudText Typo="Typo.caption" Class="mud-text-secondary">Mods required by the connected server</MudText>
-                <MudDivider Class="my-3"/>
-                @if (_loading)
-                {
-                    <MudProgressCircular Indeterminate="true" Size="Size.Small"/>
-                }
-                else if (_serverMods.Count == 0)
-                {
-                    <MudAlert Severity="Severity.Info" Variant="Variant.Outlined">
-                        @(_serverMessage ?? "No client mods are published by this server.")
-                    </MudAlert>
-                }
-                else
-                {
-                    @foreach (var mod in _serverMods)
-                    {
-                        <MudPaper Class="pa-2 mb-2" Elevation="1">
-                            <MudText>@mod.Name</MudText>
-                            <MudText Typo="Typo.caption">@mod.Version</MudText>
-                        </MudPaper>
-                    }
-                }
-            </MudPaper>
-        </MudItem>
-        <MudItem xs="12" md="6">
-            <MudPaper Class="pa-4 border-2 border-solid mud-border-lines-default card-container" Elevation="2" Style="min-height:360px">
+            </MudItem>
+            <MudItem xs="6">
                 <MudText Typo="Typo.h6">Your Client Mods</MudText>
-                <MudText Typo="Typo.caption" Class="mud-text-secondary">BepInEx/plugins in your game installation</MudText>
-                <MudDivider Class="my-3"/>
-                @if (_localMods.Count == 0)
-                {
-                    <MudText Class="mud-text-secondary">No plugin DLLs found.</MudText>
-                }
-                else
-                {
-                    @foreach (var mod in _localMods)
-                    {
-                        <MudPaper Class="pa-2 mb-2" Elevation="1">
-                            <MudText>@mod</MudText>
+            </MudItem>
+        </MudGrid>
+        <MudDivider Class="my-3"/>
+        @if (_loading)
+        {
+            <MudProgressCircular Indeterminate="true" Size="Size.Small"/>
+        }
+        else if (_serverMods.Count == 0)
+        {
+            <MudAlert Severity="Severity.Info" Variant="Variant.Outlined">
+                @(_serverMessage ?? "No client mods are published by this server.")
+            </MudAlert>
+        }
+        else
+        {
+            @foreach (var mod in _serverMods)
+            {
+                var local = _localMods.FirstOrDefault(x => x.Path.Equals(mod.FileName, StringComparison.OrdinalIgnoreCase));
+                var matches = local != null && local.Hash.Equals(mod.Sha256, StringComparison.OrdinalIgnoreCase);
+                <MudGrid Spacing="2" Class="py-1">
+                    <MudItem xs="6">
+                        <MudPaper Class="pa-2" Elevation="1">
+                            <MudText Typo="Typo.body2">@mod.Name - V@(FormatVersion(mod.Version))</MudText>
+                            <MudText Typo="Typo.caption" Class="mud-text-secondary">@mod.FileName</MudText>
                         </MudPaper>
-                    }
+                    </MudItem>
+                    <MudItem xs="6">
+                        <MudPaper Class="pa-2" Elevation="1">
+                            <MudText Typo="Typo.body2">
+                                @mod.Name -
+                                <span style="color:@(matches ? "inherit" : "#f44336")">
+                                    @(local is null ? "Not Installed" : "V" + FormatVersion(local.Version))
+                                </span>
+                            </MudText>
+                            <MudText Typo="Typo.caption" Class="mud-text-secondary">@(local?.Path ?? "Missing")</MudText>
+                        </MudPaper>
+                    </MudItem>
+                </MudGrid>
+            }
+            @if (_extraMods.Count > 0)
+            {
+                <MudDivider Class="my-3"/>
+                <MudText Typo="Typo.subtitle2">Additional Client Mods</MudText>
+                @foreach (var extra in _extraMods)
+                {
+                    <MudText Typo="Typo.body2">@extra.Path - V@(FormatVersion(extra.Version))</MudText>
                 }
-            </MudPaper>
-        </MudItem>
-    </MudGrid>
+            }
+        }
+    </MudPaper>
 
 </MudContainer>
 
@@ -104,7 +112,18 @@
                BuiltInPlugins.Contains(parts[^1]);
     }
 
-    private readonly List<string> _localMods = [];
+    private sealed class LocalModEntry
+    {
+        public string Path { get; set; } = "";
+        public string Version { get; set; } = "";
+        public string Hash { get; set; } = "";
+    }
+
+    private static string FormatVersion(string? version) =>
+        string.IsNullOrWhiteSpace(version) ? "Unknown" : version;
+
+    private readonly List<LocalModEntry> _localMods = [];
+    private readonly List<LocalModEntry> _extraMods = [];
     private List<ClientModEntry> _serverMods = [];
     private bool _loading;
     private string? _serverMessage;
@@ -179,23 +198,36 @@
     {
         _loading = true;
         _localMods.Clear();
+        _extraMods.Clear();
         _serverMods = [];
         _serverMessage = null;
         try
         {
-            var pluginFolder = Path.Combine(ConfigHelper.GetGamePath(), "BepInEx", "plugins");
-            if (Directory.Exists(pluginFolder))
+            var bepInExFolder = Path.Combine(ConfigHelper.GetGamePath(), "BepInEx");
+            foreach (var kind in new[] { "plugins", "patchers" })
             {
-                _localMods.AddRange(Directory.EnumerateFiles(pluginFolder, "*.dll", SearchOption.AllDirectories)
-                    .Select(path => Path.GetRelativePath(pluginFolder, path))
-                    .Where(path => !IsBuiltInPlugin(path))
-                    .OrderBy(path => path, StringComparer.OrdinalIgnoreCase));
+                var directory = Path.Combine(bepInExFolder, kind);
+                if (!Directory.Exists(directory)) continue;
+                foreach (var file in Directory.EnumerateFiles(directory, "*", SearchOption.AllDirectories))
+                {
+                    var relative = Path.GetRelativePath(bepInExFolder, file).Replace('\\', '/');
+                    if (!IsSafeModPath(relative)) continue;
+                    await using var stream = File.OpenRead(file);
+                    _localMods.Add(new LocalModEntry
+                    {
+                        Path = relative,
+                        Version = System.Diagnostics.FileVersionInfo.GetVersionInfo(file).FileVersion ?? "",
+                        Hash = Convert.ToHexString(await SHA256.HashDataAsync(stream))
+                    });
+                }
             }
             // This endpoint must be implemented server-side before sync can be enabled.
             try
             {
                 _serverMods = await HttpHelper.GameServerGet<List<ClientModEntry>>(
                     "/launcher/v2/client-mods", CancellationToken.None) ?? [];
+                var required = new HashSet<string>(_serverMods.Select(x => x.FileName), StringComparer.OrdinalIgnoreCase);
+                _extraMods.AddRange(_localMods.Where(x => !required.Contains(x.Path)).OrderBy(x => x.Path));
             }
             catch (Exception)
             {
