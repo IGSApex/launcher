@@ -14,61 +14,88 @@ public static class ClientModProfiles
         lock (Gate)
         {
             var bep = Path.Combine(gamePath, "BepInEx");
-            var plugins = Path.Combine(bep, "plugins");
             var disabled = Path.Combine(bep, "disabled-plugins");
-            Directory.CreateDirectory(plugins);
             Directory.CreateDirectory(disabled);
             var key = GetKey(server);
             var statePath = Path.Combine(disabled, StateFile);
             var oldKey = File.Exists(statePath)
                 ? JsonSerializer.Deserialize<ActiveState>(File.ReadAllText(statePath))?.Key
                 : null;
-            if (oldKey == key) return;
 
-            // On first use, preserve existing installed mods under the selected server.
-            // Core SPT plugins are shared by every server.
+            // On first activation the existing active mods belong to the selected server.
             var previous = string.IsNullOrWhiteSpace(oldKey) ? key : ValidateKey(oldKey);
             var oldStore = Path.Combine(disabled, previous);
             var newStore = Path.Combine(disabled, key);
-            Directory.CreateDirectory(oldStore);
-            Directory.CreateDirectory(newStore);
+            foreach (var profile in new[] { oldStore, newStore })
+                foreach (var kind in new[] { "plugins", "patchers" })
+                    Directory.CreateDirectory(Path.Combine(profile, kind));
 
-            var outgoing = Directory.EnumerateFileSystemEntries(plugins)
-                .Where(p => !Path.GetFileName(p).Equals("spt", StringComparison.OrdinalIgnoreCase))
-                .ToList();
-            var incoming = Directory.EnumerateFileSystemEntries(newStore).ToList();
-
-            // Never overwrite an existing mod: refuse the switch before moving anything.
-            foreach (var entry in outgoing)
+            // Upgrade the old flat plugin-only profile layout without moving active files.
+            foreach (var profile in new[] { oldStore, newStore }.Distinct())
             {
-                var destination = Path.Combine(oldStore, Path.GetFileName(entry));
-                if (File.Exists(destination) || Directory.Exists(destination))
-                    throw new IOException("Mod profile destination already exists: " + destination);
-            }
-            foreach (var entry in incoming)
-            {
-                var destination = Path.Combine(plugins, Path.GetFileName(entry));
-                if (Path.GetFileName(entry).Equals("spt", StringComparison.OrdinalIgnoreCase) ||
-                    File.Exists(destination) || Directory.Exists(destination))
-                    throw new IOException("Cannot activate conflicting mod: " + destination);
+                var legacy = Directory.EnumerateFileSystemEntries(profile)
+                    .Where(p => !new[] { "plugins", "patchers" }.Contains(
+                        Path.GetFileName(p), StringComparer.OrdinalIgnoreCase)).ToList();
+                foreach (var entry in legacy)
+                {
+                    var destination = Path.Combine(profile, "plugins", Path.GetFileName(entry));
+                    if (File.Exists(destination) || Directory.Exists(destination))
+                        throw new IOException("Legacy profile migration conflict: " + destination);
+                }
+                foreach (var entry in legacy)
+                    Move(entry, Path.Combine(profile, "plugins", Path.GetFileName(entry)), null);
             }
 
             var moves = new List<(string Source, string Destination)>();
+            var outgoing = new List<(string Source, string Destination)>();
+            var incoming = new List<(string Source, string Destination)>();
+
+            foreach (var kind in new[] { "plugins", "patchers" })
+            {
+                var active = Path.Combine(bep, kind);
+                Directory.CreateDirectory(active);
+                var oldFolder = Path.Combine(oldStore, kind);
+                var newFolder = Path.Combine(newStore, kind);
+
+                bool IsShared(string name) =>
+                    kind == "plugins"
+                        ? name.Equals("spt", StringComparison.OrdinalIgnoreCase)
+                        : name.Equals("spt-prepatch.dll", StringComparison.OrdinalIgnoreCase);
+
+                foreach (var entry in Directory.EnumerateFileSystemEntries(active))
+                {
+                    if (IsShared(Path.GetFileName(entry))) continue;
+                    outgoing.Add((entry, Path.Combine(oldFolder, Path.GetFileName(entry))));
+                }
+
+                if (oldKey == key) continue;
+                foreach (var entry in Directory.EnumerateFileSystemEntries(newFolder))
+                {
+                    if (IsShared(Path.GetFileName(entry)))
+                        throw new IOException("Shared SPT component must not be stored in a profile: " + entry);
+                    incoming.Add((entry, Path.Combine(active, Path.GetFileName(entry))));
+                }
+            }
+
+            // Do not move anything when selecting the already-active server.
+            if (oldKey == key) return;
+
+            foreach (var (source, destination) in outgoing.Concat(incoming))
+                if (File.Exists(destination) || Directory.Exists(destination))
+                    throw new IOException("Mod profile destination already exists: " + destination);
+
             try
             {
-                foreach (var entry in outgoing)
-                    Move(entry, Path.Combine(oldStore, Path.GetFileName(entry)), moves);
-                foreach (var entry in incoming)
-                    Move(entry, Path.Combine(plugins, Path.GetFileName(entry)), moves);
+                foreach (var (source, destination) in outgoing)
+                    Move(source, destination, moves);
+                foreach (var (source, destination) in incoming)
+                    Move(source, destination, moves);
                 File.WriteAllText(statePath, JsonSerializer.Serialize(new ActiveState { Key = key }));
             }
             catch
             {
                 for (var i = moves.Count - 1; i >= 0; i--)
-                {
-                    var move = moves[i];
-                    Move(move.Destination, move.Source, null);
-                }
+                    Move(moves[i].Destination, moves[i].Source, null);
                 throw;
             }
         }
