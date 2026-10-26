@@ -41,7 +41,7 @@
                         var matches = local != null && local.Hash.Equals(mod.Sha256, StringComparison.OrdinalIgnoreCase);
                         <MudPaper Class="pa-2 mb-1" Elevation="1">
                             <MudText Typo="Typo.body2">@mod.Name - V@(FormatVersion(mod.Version))</MudText>
-                            <MudText Typo="Typo.caption" Style="color:@(matches ? "inherit" : "#f44336")">@(local == null ? "Missing" : matches ? "Installed" : "Mismatch")</MudText>
+                            <MudText Typo="Typo.caption" Style="@(matches ? "color: inherit;" : "color: #f44336;")">@(local == null ? "Missing" : matches ? "Installed" : "Mismatch")</MudText>
                         </MudPaper>
                     }
                 </MudItem>
