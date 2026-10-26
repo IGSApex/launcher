@@ -49,7 +49,7 @@
                     @foreach (var mod in _serverMods)
                     {
                         var local = _localMods.FirstOrDefault(x => x.Path.Equals(mod.FileName, StringComparison.OrdinalIgnoreCase));
-                        var matches = local != null && local.Hash.Equals(mod.Sha256, StringComparison.OrdinalIgnoreCase);
+                        var matches = local != null && local.Size == mod.Size && string.Equals(local.Version, mod.Version, StringComparison.OrdinalIgnoreCase);
                         <MudPaper Class="pa-2 mb-1" Elevation="1">
                             <MudText Typo="Typo.body2">@mod.Name - V@(FormatVersion(mod.Version))</MudText>
                             <MudText Typo="Typo.caption" Style="@(matches ? "color: inherit;" : "color: #f44336;")">@(local == null ? "Missing" : matches ? "Installed" : "Mismatch")</MudText>
@@ -134,6 +134,7 @@
         public string Path { get; set; } = "";
         public string Version { get; set; } = "";
         public string Hash { get; set; } = "";
+        public long Size { get; set; }
     }
 
     private static string FormatVersion(string? version) =>
@@ -265,7 +266,8 @@
                     {
                         Path = relative,
                         Version = System.Diagnostics.FileVersionInfo.GetVersionInfo(file).FileVersion ?? "",
-                        Hash = ""
+                        Hash = "",
+                        Size = new FileInfo(file).Length
                     });
                 }
             }
@@ -308,30 +310,6 @@
             using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(30));
             _serverMods = await HttpHelper.GameServerGet<List<ClientModEntry>>(
                 "/launcher/v2/client-mods", timeout.Token) ?? [];
-            var bepInExFolder = Path.Combine(ConfigHelper.GetGamePath(), "BepInEx");
-            var requiredFiles = _serverMods.Select(x => x.FileName).ToHashSet(StringComparer.OrdinalIgnoreCase);
-            var matches = _localMods.Where(x => requiredFiles.Contains(x.Path)).ToList();
-            _verifying = true;
-            await Parallel.ForEachAsync(matches, new ParallelOptions { MaxDegreeOfParallelism = 4 }, async (entry, token) =>
-            {
-                var full = Path.Combine(bepInExFolder, entry.Path.Replace('/', Path.DirectorySeparatorChar));
-                var info = new FileInfo(full);
-                if (!info.Exists) return;
-                var length = info.Length;
-                var modified = info.LastWriteTimeUtc.Ticks;
-                lock (_hashCache)
-                {
-                    if (_hashCache.TryGetValue(full, out var cached) && cached.Length == length && cached.Modified == modified)
-                    {
-                        entry.Hash = cached.Hash;
-                        return;
-                    }
-                }
-                await using var stream = File.OpenRead(full);
-                var hash = Convert.ToHexString(await SHA256.HashDataAsync(stream, token));
-                entry.Hash = hash;
-                lock (_hashCache) _hashCache[full] = (length, modified, hash);
-            });
             var required = new HashSet<string>(_serverMods.Select(x => x.FileName), StringComparer.OrdinalIgnoreCase);
             _extraMods.Clear();
             _extraMods.AddRange(_localMods.Where(x => !required.Contains(x.Path)).OrderBy(x => x.Path));
