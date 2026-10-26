@@ -30,6 +30,7 @@
         </MudGrid>
         <MudDivider Class="my-3"/>
         @if (_loading) { <MudProgressCircular Indeterminate="true" Size="Size.Small"/> }
+        else if (_verifying) { <MudText Typo="Typo.caption">Verifying required mods in background...</MudText> }
         else
         {
             <MudGrid Spacing="2">
@@ -134,7 +135,9 @@
     private readonly List<DisabledModEntry> _disabledMods = [];
     private static string GroupName(string path) => path.Split('/').Length > 2 ? path.Split('/')[1] : "(root files)";
     private List<ClientModEntry> _serverMods = [];
+    private readonly Dictionary<string, (long Length, long Modified, string Hash)> _hashCache = new(StringComparer.OrdinalIgnoreCase);
     private bool _loading;
+    private bool _verifying;
     private string? _serverMessage;
 
     protected override async Task OnInitializedAsync()
@@ -222,12 +225,11 @@
                 {
                     var relative = Path.GetRelativePath(bepInExFolder, file).Replace('\\', '/');
                     if (!IsSafeModPath(relative)) continue;
-                    await using var stream = File.OpenRead(file);
                     _localMods.Add(new LocalModEntry
                     {
                         Path = relative,
                         Version = System.Diagnostics.FileVersionInfo.GetVersionInfo(file).FileVersion ?? "",
-                        Hash = Convert.ToHexString(await SHA256.HashDataAsync(stream))
+                        Hash = ""
                     });
                 }
             }
@@ -251,6 +253,31 @@
             {
                 _serverMods = await HttpHelper.GameServerGet<List<ClientModEntry>>(
                     "/launcher/v2/client-mods", CancellationToken.None) ?? [];
+                // Only hash files required by this server; do not hash every installed mod.
+                _verifying = true;
+                var requiredFiles = _serverMods.Select(x => x.FileName).ToHashSet(StringComparer.OrdinalIgnoreCase);
+                var matches = _localMods.Where(x => requiredFiles.Contains(x.Path)).ToList();
+                await Parallel.ForEachAsync(matches, new ParallelOptions { MaxDegreeOfParallelism = 4 }, async (entry, token) =>
+                {
+                    var full = Path.Combine(bepInExFolder, entry.Path.Replace('/', Path.DirectorySeparatorChar));
+                    var info = new FileInfo(full);
+                    if (!info.Exists) return;
+                    var length = info.Length;
+                    var modified = info.LastWriteTimeUtc.Ticks;
+                    lock (_hashCache)
+                    {
+                        if (_hashCache.TryGetValue(full, out var cached) && cached.Length == length && cached.Modified == modified)
+                        {
+                            entry.Hash = cached.Hash;
+                            return;
+                        }
+                    }
+                    await using var stream = File.OpenRead(full);
+                    var hash = Convert.ToHexString(await SHA256.HashDataAsync(stream, token));
+                    entry.Hash = hash;
+                    lock (_hashCache) _hashCache[full] = (length, modified, hash);
+                });
+                _verifying = false;
                 var required = new HashSet<string>(_serverMods.Select(x => x.FileName), StringComparer.OrdinalIgnoreCase);
                 _extraMods.AddRange(_localMods.Where(x => !required.Contains(x.Path)).OrderBy(x => x.Path));
             }
@@ -265,6 +292,7 @@
         }
         finally
         {
+            _verifying = false;
             _loading = false;
         }
     }
