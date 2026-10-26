@@ -24,59 +24,65 @@
 
     <MudPaper Class="pa-3 border-2 border-solid mud-border-lines-default card-container" Elevation="2">
         <MudGrid Spacing="2">
-            <MudItem xs="6">
-                <MudText Typo="Typo.h6">Server Required Client Mods</MudText>
-            </MudItem>
-            <MudItem xs="6">
-                <MudText Typo="Typo.h6">Your Client Mods</MudText>
-            </MudItem>
+            <MudItem xs="4"><MudText Typo="Typo.h6">Server Required Client Mods</MudText></MudItem>
+            <MudItem xs="4"><MudText Typo="Typo.h6">Your Client Mods</MudText></MudItem>
+            <MudItem xs="4"><MudText Typo="Typo.h6">Disabled Mods</MudText></MudItem>
         </MudGrid>
         <MudDivider Class="my-3"/>
-        @if (_loading)
-        {
-            <MudProgressCircular Indeterminate="true" Size="Size.Small"/>
-        }
-        else if (_serverMods.Count == 0)
-        {
-            <MudAlert Severity="Severity.Info" Variant="Variant.Outlined">
-                @(_serverMessage ?? "No client mods are published by this server.")
-            </MudAlert>
-        }
+        @if (_loading) { <MudProgressCircular Indeterminate="true" Size="Size.Small"/> }
         else
         {
-            @foreach (var mod in _serverMods)
-            {
-                var local = _localMods.FirstOrDefault(x => x.Path.Equals(mod.FileName, StringComparison.OrdinalIgnoreCase));
-                var matches = local != null && local.Hash.Equals(mod.Sha256, StringComparison.OrdinalIgnoreCase);
-                <MudGrid Spacing="2" Class="py-1">
-                    <MudItem xs="6">
-                        <MudPaper Class="pa-2" Elevation="1">
+            <MudGrid Spacing="2">
+                <MudItem xs="4">
+                    @if (_serverMessage != null) { <MudAlert Severity="Severity.Info">@_serverMessage</MudAlert> }
+                    @foreach (var mod in _serverMods)
+                    {
+                        var local = _localMods.FirstOrDefault(x => x.Path.Equals(mod.FileName, StringComparison.OrdinalIgnoreCase));
+                        var matches = local != null && local.Hash.Equals(mod.Sha256, StringComparison.OrdinalIgnoreCase);
+                        <MudPaper Class="pa-2 mb-1" Elevation="1">
                             <MudText Typo="Typo.body2">@mod.Name - V@(FormatVersion(mod.Version))</MudText>
-                            <MudText Typo="Typo.caption" Class="mud-text-secondary">@mod.FileName</MudText>
+                            <MudText Typo="Typo.caption" Style="color:@(matches ? "inherit" : "#f44336")">@(local == null ? "Missing" : matches ? "Installed" : "Mismatch")</MudText>
                         </MudPaper>
-                    </MudItem>
-                    <MudItem xs="6">
-                        <MudPaper Class="pa-2" Elevation="1">
-                            <MudText Typo="Typo.body2">
-                                @mod.Name -
-                                <span style="color:@(matches ? "inherit" : "#f44336")">
-                                    @(local is null ? "Not Installed" : "V" + FormatVersion(local.Version))
-                                </span>
-                            </MudText>
-                            <MudText Typo="Typo.caption" Class="mud-text-secondary">@(local?.Path ?? "Missing")</MudText>
-                        </MudPaper>
-                    </MudItem>
-                </MudGrid>
-            }
-            @if (_extraMods.Count > 0)
-            {
-                <MudDivider Class="my-3"/>
-                <MudText Typo="Typo.subtitle2">Additional Client Mods</MudText>
-                @foreach (var extra in _extraMods)
-                {
-                    <MudText Typo="Typo.body2">@extra.Path - V@(FormatVersion(extra.Version))</MudText>
-                }
-            }
+                    }
+                </MudItem>
+                <MudItem xs="4">
+                    @foreach (var kind in new[] { "plugins", "patchers" })
+                    {
+                        <MudExpansionPanel Text="@kind">
+                            @foreach (var group in _localMods.Where(m => m.Path.StartsWith(kind + "/", StringComparison.OrdinalIgnoreCase)).GroupBy(m => GroupName(m.Path)).OrderBy(g => g.Key))
+                            {
+                                <MudExpansionPanel Text="@group.Key">
+                                    @foreach (var mod in group.OrderBy(m => m.Path))
+                                    {
+                                        <MudText Typo="Typo.caption">@Path.GetFileName(mod.Path) - V@(FormatVersion(mod.Version))</MudText>
+                                    }
+                                </MudExpansionPanel>
+                            }
+                        </MudExpansionPanel>
+                    }
+                </MudItem>
+                <MudItem xs="4">
+                    @foreach (var profile in _disabledMods.GroupBy(x => x.Profile).OrderBy(x => x.Key))
+                    {
+                        <MudExpansionPanel Text="@profile.Key">
+                            @foreach (var kind in new[] { "plugins", "patchers" })
+                            {
+                                <MudExpansionPanel Text="@kind">
+                                    @foreach (var group in profile.Where(x => x.Path.StartsWith(kind + "/", StringComparison.OrdinalIgnoreCase)).GroupBy(x => GroupName(x.Path)).OrderBy(x => x.Key))
+                                    {
+                                        <MudExpansionPanel Text="@group.Key">
+                                            @foreach (var mod in group.OrderBy(x => x.Path))
+                                            {
+                                                <MudText Typo="Typo.caption">@Path.GetFileName(mod.Path)</MudText>
+                                            }
+                                        </MudExpansionPanel>
+                                    }
+                                </MudExpansionPanel>
+                            }
+                        </MudExpansionPanel>
+                    }
+                </MudItem>
+            </MudGrid>
         }
     </MudPaper>
 
@@ -124,6 +130,9 @@
 
     private readonly List<LocalModEntry> _localMods = [];
     private readonly List<LocalModEntry> _extraMods = [];
+    private sealed record DisabledModEntry(string Profile, string Path);
+    private readonly List<DisabledModEntry> _disabledMods = [];
+    private static string GroupName(string path) => path.Split('/').Length > 2 ? path.Split('/')[1] : "(root files)";
     private List<ClientModEntry> _serverMods = [];
     private bool _loading;
     private string? _serverMessage;
@@ -199,6 +208,7 @@
         _loading = true;
         _localMods.Clear();
         _extraMods.Clear();
+        _disabledMods.Clear();
         _serverMods = [];
         _serverMessage = null;
         try
@@ -219,6 +229,21 @@
                         Version = System.Diagnostics.FileVersionInfo.GetVersionInfo(file).FileVersion ?? "",
                         Hash = Convert.ToHexString(await SHA256.HashDataAsync(stream))
                     });
+                }
+            }
+            var disabledRoot = Path.Combine(bepInExFolder, "disabled-plugins");
+            if (Directory.Exists(disabledRoot))
+            {
+                foreach (var profile in Directory.EnumerateDirectories(disabledRoot))
+                {
+                    foreach (var kind in new[] { "plugins", "patchers" })
+                    {
+                        var folder = Path.Combine(profile, kind);
+                        if (!Directory.Exists(folder)) continue;
+                        foreach (var file in Directory.EnumerateFiles(folder, "*", SearchOption.AllDirectories))
+                            _disabledMods.Add(new DisabledModEntry(Path.GetFileName(profile),
+                                Path.GetRelativePath(profile, file).Replace(Path.DirectorySeparatorChar, '/')));
+                    }
                 }
             }
             // This endpoint must be implemented server-side before sync can be enabled.
