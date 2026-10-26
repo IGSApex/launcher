@@ -305,7 +305,7 @@
         await InvokeAsync(StateHasChanged);
         try
         {
-            using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+            using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(30));
             _serverMods = await HttpHelper.GameServerGet<List<ClientModEntry>>(
                 "/launcher/v2/client-mods", timeout.Token) ?? [];
             var bepInExFolder = Path.Combine(ConfigHelper.GetGamePath(), "BepInEx");
@@ -336,9 +336,13 @@
             _extraMods.Clear();
             _extraMods.AddRange(_localMods.Where(x => !required.Contains(x.Path)).OrderBy(x => x.Path));
         }
-        catch (Exception)
+        catch (OperationCanceledException)
         {
-            _serverMessage = "Server client-mod manifest is unavailable or timed out.";
+            _serverMessage = "Server mod manifest request timed out after 30 seconds.";
+        }
+        catch (Exception ex)
+        {
+            _serverMessage = "Could not load server mod manifest: " + ex.Message;
         }
         finally
         {
