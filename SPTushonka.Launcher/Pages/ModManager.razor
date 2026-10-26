@@ -22,6 +22,15 @@
                    OnClick="UpdateMods" Disabled="@(_loading || _serverMessage != null || _serverMods.Count == 0)">UPDATE MODS TO MATCH SERVER</MudButton>
     </MudContainer>
 
+    @if (_downloading)
+    {
+        <MudPaper Class="pa-3 mb-3 border-2 border-solid mud-border-lines-default card-container">
+            <MudText Typo="Typo.body2">Downloading @_downloadName (@_downloadIndex / @_downloadCount)</MudText>
+            <MudProgressLinear Color="Color.Primary" Value="@_downloadPercent" Rounded="true" Size="Size.Medium"/>
+            <MudText Typo="Typo.caption">@_downloadPercent.ToString("0")%</MudText>
+        </MudPaper>
+    }
+
     <MudPaper Class="pa-3 border-2 border-solid mud-border-lines-default card-container" Elevation="2">
         <MudGrid Spacing="2">
             <MudItem xs="4"><MudText Typo="Typo.h6">Server Required Client Mods</MudText></MudItem>
@@ -140,6 +149,11 @@
     private bool _loading;
     private bool _verifying;
     private bool _serverLoading;
+    private bool _downloading;
+    private string _downloadName = "";
+    private int _downloadIndex;
+    private int _downloadCount;
+    private double _downloadPercent;
     private string? _serverMessage;
 
     protected override async Task OnInitializedAsync()
@@ -171,23 +185,36 @@
     {
         if (_loading || _serverMessage != null || _serverMods.Count == 0) return;
         _loading = true;
+        _downloadCount = _serverMods.Count;
+        _downloadIndex = 0;
+        _downloadPercent = 0;
         try
         {
             var folder = Path.GetFullPath(Path.Combine(ConfigHelper.GetGamePath(), "BepInEx"));
             Directory.CreateDirectory(folder);
             foreach (var mod in _serverMods)
             {
+                _downloadIndex++;
                 if (string.IsNullOrWhiteSpace(mod.FileName) || !IsSafeModPath(mod.FileName) ||
                     mod.Size <= 0 || mod.Sha256.Length != 64 || !mod.Sha256.All(Uri.IsHexDigit))
                     throw new InvalidDataException("Invalid server mod entry: " + mod.Name);
                 var destination = Path.GetFullPath(Path.Combine(folder, mod.FileName.Replace('/', Path.DirectorySeparatorChar)));
                 Directory.CreateDirectory(Path.GetDirectoryName(destination)!);
                 if (File.Exists(destination) && await HashMatches(destination, mod.Sha256)) continue;
+                _downloading = true;
+                _downloadName = mod.Name;
+                _downloadPercent = 0;
+                await InvokeAsync(StateHasChanged);
                 var staging = destination + ".download";
                 try
                 {
                     await HttpHelper.DownloadFileAsync("/files/client-mod/" + string.Join("/", mod.FileName.Split('/').Select(Uri.EscapeDataString)),
-                        staging, null, CancellationToken.None);
+                        staging, (written, total) =>
+                        {
+                            if (total <= 0) return;
+                            _downloadPercent = Math.Clamp(100.0 * written / total, 0, 100);
+                            _ = InvokeAsync(StateHasChanged);
+                        }, CancellationToken.None);
                     if (new FileInfo(staging).Length != mod.Size || !await HashMatches(staging, mod.Sha256))
                         throw new InvalidDataException("Integrity check failed: " + mod.FileName);
                     if (File.Exists(destination)) File.Copy(destination, destination + ".backup", true);
@@ -198,7 +225,14 @@
             Snackbar.Add("Client mods updated. Restart the game to load changes.", Severity.Success);
         }
         catch (Exception ex) { Snackbar.Add("Mod update failed: " + ex.Message, Severity.Error); }
-        finally { _loading = false; await Reload(); }
+        finally
+        {
+            _downloading = false;
+            _downloadName = "";
+            _downloadPercent = 0;
+            _loading = false;
+            await Reload();
+        }
     }
 
     private static async Task<bool> HashMatches(string file, string expected)
