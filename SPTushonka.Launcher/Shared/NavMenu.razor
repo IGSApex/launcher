@@ -5,6 +5,7 @@
 
 <MudNavMenu Class="mud-typography-nowrap nav-top">
     <NavIcon Disabled="!StateHelper.AllowNavigation" Icon="@Icons.Material.Filled.ConnectedTv" Href="/ServerPageWrapper/false" Text="@(LocaleHelper.Get("home"))"/>
+    <NavIcon Disabled="!StateHelper.AllowNavigation" Icon="@Icons.Material.Filled.Dns" Href="/ServerBrowser" Text="SERVER BROWSER"/>
 </MudNavMenu>
 @if (StateHelper.AllowServerPage)
 {
