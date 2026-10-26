@@ -1,8 +1,127 @@
 @page "/ServerBrowser"
+@using System.Net.Http.Json
+@using System.Text.Json.Serialization
+@inject ConfigHelper ConfigHelper
+@inject ISnackbar Snackbar
+@inject NavigationManager NavigationManager
+@implements IDisposable
 
 <MudContainer Class="px-4 my-2" MaxWidth="MaxWidth.Large">
+    <div class="d-flex justify-space-between align-center mb-4">
+        <MudButton Color="Color.Dark" StartIcon="@Icons.Material.Filled.ArrowBack"
+                   Variant="Variant.Filled" OnClick="@(() => NavigationManager.NavigateTo("/"))">BACK</MudButton>
+        <MudButton Color="Color.Dark" StartIcon="@Icons.Material.Filled.Refresh"
+                   Variant="Variant.Filled" Disabled="@_loading" OnClick="RefreshAsync">REFRESH</MudButton>
+    </div>
     <MudText Typo="Typo.h5" Class="mb-4">SERVER BROWSER</MudText>
-    <MudAlert Severity="Severity.Info" Variant="Variant.Outlined">
-        Server discovery will be available here soon.
-    </MudAlert>
+    @if (_loading)
+    {
+        <MudProgressLinear Indeterminate="true" Color="Color.Primary" Class="mb-3"/>
+    }
+    @if (!string.IsNullOrEmpty(_error))
+    {
+        <MudAlert Severity="Severity.Warning" Class="mb-3">@_error</MudAlert>
+    }
+    <MudTextField T="string" @bind-Value="_search" Immediate="true" Placeholder="Search servers"
+                  Variant="Variant.Outlined" Class="mb-3"/>
+    <MudGrid>
+        @foreach (var server in _servers.Where(s => string.IsNullOrWhiteSpace(_search) ||
+                     s.Name.Contains(_search, StringComparison.OrdinalIgnoreCase)))
+        {
+            <MudItem xs="12" sm="6" md="4">
+                <MudPaper Class="pa-4 border-2 border-solid mud-border-lines-default card-container">
+                    <MudText Typo="Typo.h6">@server.Name</MudText>
+                    <MudText Typo="Typo.body2">Players: @server.CurrentPlayers / @server.MaxPlayers</MudText>
+                    <MudText Typo="Typo.body2">@(server.RequireLauncherAccount ? "Launcher account required" : "No launcher account required")</MudText>
+                    <MudText Typo="Typo.caption">Last heartbeat: @server.LastHeartbeat.ToLocalTime().ToString("g")</MudText>
+                    <div class="mt-3">
+                        <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                                   Disabled="@IsAdded(server)" OnClick="@(() => AddServer(server))">
+                            @(IsAdded(server) ? "ADDED" : "ADD SERVER")
+                        </MudButton>
+                    </div>
+                </MudPaper>
+            </MudItem>
+        }
+    </MudGrid>
+    @if (!_loading && string.IsNullOrEmpty(_error) && _servers.Count == 0)
+    {
+        <MudAlert Severity="Severity.Info" Class="mt-3">No public servers are currently online.</MudAlert>
+    }
 </MudContainer>
+
+@code {
+    private const string MasterUrl = "http://136.62.131.89:8080/api/servers";
+    private readonly HttpClient _client = new() { Timeout = TimeSpan.FromSeconds(10) };
+    private List<BrowserServer> _servers = [];
+    private string _search = "";
+    private string? _error;
+    private bool _loading;
+
+    protected override async Task OnInitializedAsync() => await RefreshAsync();
+
+    private async Task RefreshAsync()
+    {
+        _loading = true;
+        _error = null;
+        try
+        {
+            _servers = await _client.GetFromJsonAsync<List<BrowserServer>>(MasterUrl) ?? [];
+        }
+        catch (Exception ex)
+        {
+            _error = "Unable to load the master server list: " + ex.Message;
+            _servers = [];
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private static string Address(BrowserServer server)
+    {
+        var uri = new Uri(server.Address);
+        return uri.IsDefaultPort ? uri.Host : $"{uri.Host}:{uri.Port}";
+    }
+
+    private bool IsAdded(BrowserServer server) =>
+        ConfigHelper.GetServers().Any(s =>
+            string.Equals(s.IpAddress, Address(server), StringComparison.OrdinalIgnoreCase));
+
+    private void AddServer(BrowserServer entry)
+    {
+        try
+        {
+            var address = Address(entry);
+            var saved = ConfigHelper.GetServers();
+            if (saved.Any(s => string.Equals(s.IpAddress, address, StringComparison.OrdinalIgnoreCase)))
+                return;
+            saved.Add(new Server
+            {
+                ServerId = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds().ToString(),
+                Name = entry.Name,
+                IpAddress = address
+            });
+            ConfigHelper.SetServers(saved);
+            Snackbar.Add("Server added. Select it from Home to connect.", Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add("Unable to add server: " + ex.Message, Severity.Error);
+        }
+    }
+
+    public void Dispose() => _client.Dispose();
+
+    private sealed class BrowserServer
+    {
+        public string Id { get; set; } = "";
+        public string Name { get; set; } = "";
+        public string Address { get; set; } = "";
+        public int CurrentPlayers { get; set; }
+        public int MaxPlayers { get; set; }
+        public bool RequireLauncherAccount { get; set; }
+        public DateTimeOffset LastHeartbeat { get; set; }
+    }
+}
