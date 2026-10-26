@@ -35,6 +35,7 @@
         {
             <MudGrid Spacing="2">
                 <MudItem xs="4">
+                    @if (_serverLoading) { <MudText Typo="Typo.caption">Checking server requirements...</MudText> }
                     @if (_serverMessage != null) { <MudAlert Severity="Severity.Info">@_serverMessage</MudAlert> }
                     @foreach (var mod in _serverMods)
                     {
@@ -138,6 +139,7 @@
     private readonly Dictionary<string, (long Length, long Modified, string Hash)> _hashCache = new(StringComparer.OrdinalIgnoreCase);
     private bool _loading;
     private bool _verifying;
+    private bool _serverLoading;
     private string? _serverMessage;
 
     protected override async Task OnInitializedAsync()
@@ -248,43 +250,7 @@
                     }
                 }
             }
-            // This endpoint must be implemented server-side before sync can be enabled.
-            try
-            {
-                _serverMods = await HttpHelper.GameServerGet<List<ClientModEntry>>(
-                    "/launcher/v2/client-mods", CancellationToken.None) ?? [];
-                // Only hash files required by this server; do not hash every installed mod.
-                _verifying = true;
-                var requiredFiles = _serverMods.Select(x => x.FileName).ToHashSet(StringComparer.OrdinalIgnoreCase);
-                var matches = _localMods.Where(x => requiredFiles.Contains(x.Path)).ToList();
-                await Parallel.ForEachAsync(matches, new ParallelOptions { MaxDegreeOfParallelism = 4 }, async (entry, token) =>
-                {
-                    var full = Path.Combine(bepInExFolder, entry.Path.Replace('/', Path.DirectorySeparatorChar));
-                    var info = new FileInfo(full);
-                    if (!info.Exists) return;
-                    var length = info.Length;
-                    var modified = info.LastWriteTimeUtc.Ticks;
-                    lock (_hashCache)
-                    {
-                        if (_hashCache.TryGetValue(full, out var cached) && cached.Length == length && cached.Modified == modified)
-                        {
-                            entry.Hash = cached.Hash;
-                            return;
-                        }
-                    }
-                    await using var stream = File.OpenRead(full);
-                    var hash = Convert.ToHexString(await SHA256.HashDataAsync(stream, token));
-                    entry.Hash = hash;
-                    lock (_hashCache) _hashCache[full] = (length, modified, hash);
-                });
-                _verifying = false;
-                var required = new HashSet<string>(_serverMods.Select(x => x.FileName), StringComparer.OrdinalIgnoreCase);
-                _extraMods.AddRange(_localMods.Where(x => !required.Contains(x.Path)).OrderBy(x => x.Path));
-            }
-            catch (Exception)
-            {
-                _serverMessage = "Server client-mod manifest is not available yet.";
-            }
+
         }
         catch (Exception ex)
         {
@@ -294,6 +260,57 @@
         {
             _verifying = false;
             _loading = false;
+            await InvokeAsync(StateHasChanged);
+            _ = LoadServerRequirements();
+        }
+    }
+
+    private async Task LoadServerRequirements()
+    {
+        _serverLoading = true;
+        await InvokeAsync(StateHasChanged);
+        try
+        {
+            using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+            _serverMods = await HttpHelper.GameServerGet<List<ClientModEntry>>(
+                "/launcher/v2/client-mods", timeout.Token) ?? [];
+            var bepInExFolder = Path.Combine(ConfigHelper.GetGamePath(), "BepInEx");
+            var requiredFiles = _serverMods.Select(x => x.FileName).ToHashSet(StringComparer.OrdinalIgnoreCase);
+            var matches = _localMods.Where(x => requiredFiles.Contains(x.Path)).ToList();
+            _verifying = true;
+            await Parallel.ForEachAsync(matches, new ParallelOptions { MaxDegreeOfParallelism = 4 }, async (entry, token) =>
+            {
+                var full = Path.Combine(bepInExFolder, entry.Path.Replace('/', Path.DirectorySeparatorChar));
+                var info = new FileInfo(full);
+                if (!info.Exists) return;
+                var length = info.Length;
+                var modified = info.LastWriteTimeUtc.Ticks;
+                lock (_hashCache)
+                {
+                    if (_hashCache.TryGetValue(full, out var cached) && cached.Length == length && cached.Modified == modified)
+                    {
+                        entry.Hash = cached.Hash;
+                        return;
+                    }
+                }
+                await using var stream = File.OpenRead(full);
+                var hash = Convert.ToHexString(await SHA256.HashDataAsync(stream, token));
+                entry.Hash = hash;
+                lock (_hashCache) _hashCache[full] = (length, modified, hash);
+            });
+            var required = new HashSet<string>(_serverMods.Select(x => x.FileName), StringComparer.OrdinalIgnoreCase);
+            _extraMods.Clear();
+            _extraMods.AddRange(_localMods.Where(x => !required.Contains(x.Path)).OrderBy(x => x.Path));
+        }
+        catch (Exception)
+        {
+            _serverMessage = "Server client-mod manifest is unavailable or timed out.";
+        }
+        finally
+        {
+            _verifying = false;
+            _serverLoading = false;
+            await InvokeAsync(StateHasChanged);
         }
     }
 }
